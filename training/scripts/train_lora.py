@@ -11,7 +11,7 @@ from pathlib import Path
 
 import torch
 from datasets import load_dataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -88,8 +88,9 @@ def main() -> None:
         torch_dtype=dtype,
         device_map="auto" if torch.cuda.is_available() else None,
     )
+    # Keep cache disabled when gradient checkpointing is active.
     if torch.cuda.is_available():
-        model = prepare_model_for_kbit_training(model)
+        model.config.use_cache = False
 
     # Common decoder target modules; model architectures may require adjustment.
     lora = LoraConfig(
