@@ -69,6 +69,27 @@ def validate(row: dict[str, Any]) -> list[str]:
     return errors
 
 
+def partition_task_groups(group_names: list[str], seed: int = 42) -> dict[str, set[str]]:
+    """Deterministically split whole task groups without empty partitions."""
+    shuffled = sorted(group_names)
+    random.Random(seed).shuffle(shuffled)
+    n = len(shuffled)
+    if n < 3:
+        raise ValueError(f"Need at least 3 distinct task groups; got {n}.")
+    test_count = max(1, int(n * 0.15))
+    validation_count = max(1, int(n * 0.15))
+    train_count = n - validation_count - test_count
+    if train_count < 1:
+        raise ValueError("Could not create non-empty train/validation/test partitions.")
+    train_end = train_count
+    val_end = train_count + validation_count
+    return {
+        "train": set(shuffled[:train_end]),
+        "validation": set(shuffled[train_end:val_end]),
+        "test": set(shuffled[val_end:]),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
@@ -103,28 +124,12 @@ def main() -> None:
                 rejected.append({"line": line_number, "errors": [f"invalid JSON: {exc}"]})
 
     # Split at task-group level to prevent near-identical tasks crossing splits.
-    group_names = sorted(groups)
-    random.Random(args.seed).shuffle(group_names)
-    if len(group_names) < 3:
+    try:
+        split_groups = partition_task_groups(list(groups), seed=args.seed)
+    except ValueError as exc:
         raise SystemExit(
-            f"Need at least 3 distinct task_group values for train/validation/test; got {len(group_names)}. "
-            "The tiny fixture is only a validator smoke test, not a training dataset."
+            f"{exc} The tiny fixture is only a validator smoke test, not a training dataset."
         )
-
-    n = len(group_names)
-    # Guarantee all three partitions are non-empty, even for the 3-group smoke test.
-    test_count = max(1, int(n * 0.15))
-    validation_count = max(1, int(n * 0.15))
-    train_count = n - validation_count - test_count
-    if train_count < 1:
-        raise SystemExit("Could not create non-empty train/validation/test partitions.")
-    train_end = train_count
-    val_end = train_count + validation_count
-    split_groups = {
-        "train": set(group_names[:train_end]),
-        "validation": set(group_names[train_end:val_end]),
-        "test": set(group_names[val_end:]),
-    }
 
     counts: dict[str, int] = {}
     for split, selected_groups in split_groups.items():
