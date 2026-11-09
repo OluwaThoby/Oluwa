@@ -1,0 +1,30 @@
+name: AgencyOS training pipeline checks
+
+on:
+  push:
+    paths:
+      - "training/**"
+      - ".github/workflows/agencyos-training-tests.yml"
+  pull_request:
+    paths:
+      - "training/**"
+      - ".github/workflows/agencyos-training-tests.yml"
+
+jobs:
+  dataset-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile training scripts
+        run: python -m compileall -q training/scripts training/tests
+      - name: Run dataset unit tests
+        run: python -m unittest discover -s training/tests -v
+      - name: Validate example dataset
+        run: |
+          python training/scripts/prepare_dataset.py \
+            --input training/data/example-traces.jsonl \
+            --output-dir /tmp/agencyos-smoke-dataset \
+            --seed 42
