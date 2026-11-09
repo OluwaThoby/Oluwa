@@ -111,6 +111,8 @@ def main() -> None:
                 continue
             try:
                 row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError("each JSONL row must be an object")
                 errors = validate(row)
                 row_id = str(row.get("id", ""))
                 if row_id in seen_ids:
@@ -121,7 +123,7 @@ def main() -> None:
                 else:
                     groups[str(row["task_group"])].append(row)
             except Exception as exc:  # malformed JSON is quarantined, never silently skipped
-                rejected.append({"line": line_number, "errors": [f"invalid JSON: {exc}"]})
+                rejected.append({"line": line_number, "errors": [f"invalid row: {exc}"]})
 
     # Split at task-group level to prevent near-identical tasks crossing splits.
     try:
@@ -146,7 +148,7 @@ def main() -> None:
     manifest = {
         "seed": args.seed,
         "source": str(source),
-        "accepted_groups": len(group_names),
+        "accepted_groups": len(groups),
         "accepted_examples": sum(len(rows) for rows in groups.values()),
         "rejected_examples": len(rejected),
         "split_group_counts": {key: len(value) for key, value in split_groups.items()},
