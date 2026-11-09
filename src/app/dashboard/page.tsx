@@ -1,1 +1,25 @@
-import{redirect}from'next/navigation';import{auth}from'@/lib/auth';import Prospects from'./prospects';export const dynamic='force-dynamic';export default async function Dashboard(){const{data}=await auth.getSession();const user=data?.user;if(!user)redirect('/');if(user.email?.toLowerCase()!==process.env.OWNER_EMAIL?.toLowerCase())return <main className="loginwrap"><section className="login"><h1>Access restricted</h1><p>This private workspace is reserved for its owner.</p></section></main>;return <Prospects email={user.email||''}/>}
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import Prospects from './prospects';
+
+export const dynamic = 'force-dynamic';
+
+export default async function Dashboard() {
+  const { data } = await auth.getSession();
+  const user = data?.user;
+
+  if (!user) redirect('/');
+
+  if (user.email?.toLowerCase() !== process.env.OWNER_EMAIL?.toLowerCase()) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <h1>Access restricted</h1>
+          <p className="muted">This private workspace is reserved for its owner.</p>
+        </section>
+      </main>
+    );
+  }
+
+  return <Prospects />;
+}
