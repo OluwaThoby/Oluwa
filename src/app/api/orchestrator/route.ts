@@ -6,7 +6,9 @@ import { auth } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const MODEL = process.env.AI_GATEWAY_MODEL || 'deepseek/deepseek-v4.1-flash';
+// Keep the default aligned with an exact model ID in the AI Gateway catalog.
+// Override through AI_GATEWAY_MODEL only after verifying the ID in /v1/models.
+const MODEL = process.env.AI_GATEWAY_MODEL || 'deepseek/deepseek-v4-flash';
 
 async function isOwner() {
   const { data } = await auth.getSession();
