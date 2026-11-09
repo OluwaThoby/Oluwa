@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fine-tune an approved causal LM with LoRA; requires a GPU by default."""
+"""Fine-tune an approved causal LM with assistant-only LoRA supervision."""
 
 from __future__ import annotations
 
@@ -15,10 +15,12 @@ from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    DataCollatorForLanguageModeling,
+    DataCollatorForSeq2Seq,
     Trainer,
     TrainingArguments,
 )
+
+from sft_utils import labels_for_assistant_completion
 
 
 def main() -> None:
@@ -59,25 +61,39 @@ def main() -> None:
 
     def render_and_tokenize(example):
         messages = example["messages"]
+        if not messages or messages[-1].get("role") != "assistant":
+            raise ValueError("Each training example must end with an assistant message.")
+
         if hasattr(tokenizer, "apply_chat_template"):
-            text = tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=False
+            full_ids = tokenizer.apply_chat_template(
+                messages, tokenize=True, add_generation_prompt=False
+            )
+            prompt_ids = tokenizer.apply_chat_template(
+                messages[:-1], tokenize=True, add_generation_prompt=True
             )
         else:
-            text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
-        encoded = tokenizer(
-            text,
-            truncation=True,
-            max_length=args.max_length,
-            padding=False,
-        )
-        encoded["labels"] = encoded["input_ids"].copy()
-        return encoded
+            prompt_text = "\n".join(
+                f"{m['role']}: {m['content']}" for m in messages[:-1]
+            ) + "\nassistant:"
+            full_text = "\n".join(
+                f"{m['role']}: {m['content']}" for m in messages
+            )
+            full_ids = tokenizer(full_text, add_special_tokens=True)["input_ids"]
+            prompt_ids = tokenizer(prompt_text, add_special_tokens=True)["input_ids"]
+
+        full_ids = full_ids[: args.max_length]
+        prompt_length = min(len(prompt_ids), len(full_ids))
+        labels = labels_for_assistant_completion(full_ids, prompt_length)
+        return {
+            "input_ids": full_ids,
+            "attention_mask": [1] * len(full_ids),
+            "labels": labels,
+        }
 
     tokenized = raw.map(
         render_and_tokenize,
         remove_columns=raw["train"].column_names,
-        desc="Tokenising AgencyOS examples",
+        desc="Tokenising assistant completions",
     )
 
     dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else (
@@ -88,11 +104,9 @@ def main() -> None:
         torch_dtype=dtype,
         device_map="auto" if torch.cuda.is_available() else None,
     )
-    # Keep cache disabled when gradient checkpointing is active.
     if torch.cuda.is_available():
         model.config.use_cache = False
 
-    # Common decoder target modules; model architectures may require adjustment.
     lora = LoraConfig(
         r=16,
         lora_alpha=32,
@@ -125,7 +139,13 @@ def main() -> None:
         report_to="none",
         remove_unused_columns=False,
     )
-    collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    # Preserve the -100 prompt mask while dynamically padding labels.
+    collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer,
+        model=None,
+        padding=True,
+        label_pad_token_id=-100,
+    )
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -148,6 +168,7 @@ def main() -> None:
         "epochs": args.epochs,
         "max_length": args.max_length,
         "learning_rate": args.learning_rate,
+        "training_objective": "assistant_completion_only",
         "held_out_test_metrics": test_metrics,
         "warning": "Loss metrics alone do not establish task competence or safety. Run the AgencyOS behavioural evaluation suite before promotion.",
     }
