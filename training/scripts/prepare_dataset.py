@@ -112,9 +112,14 @@ def main() -> None:
         )
 
     n = len(group_names)
-    train_end = max(1, int(n * 0.70))
-    val_end = max(train_end + 1, int(n * 0.85))
-    val_end = min(val_end, n - 1)
+    # Guarantee all three partitions are non-empty, even for the 3-group smoke test.
+    test_count = max(1, int(n * 0.15))
+    validation_count = max(1, int(n * 0.15))
+    train_count = n - validation_count - test_count
+    if train_count < 1:
+        raise SystemExit("Could not create non-empty train/validation/test partitions.")
+    train_end = train_count
+    val_end = train_count + validation_count
     split_groups = {
         "train": set(group_names[:train_end]),
         "validation": set(group_names[train_end:val_end]),
