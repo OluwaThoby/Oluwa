@@ -44,7 +44,7 @@ async function validatePublicUrl(raw: string) {
   return { url, addresses };
 }
 
-async function requestPinnedPage(url: URL, address: { address: string; family: number }) {
+async function requestPinnedPage(url: URL, pinnedAddress: { address: string; family: number }) {
   const transport = url.protocol === 'https:' ? https : http;
   return new Promise<{ status: number; location: string | null; contentType: string; html: string }>((resolve, reject) => {
     let settled = false;
@@ -67,7 +67,7 @@ async function requestPinnedPage(url: URL, address: { address: string; family: n
       },
       servername: isIP(url.hostname) ? undefined : url.hostname,
       lookup: (_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
-        callback(null, address.address, address.family);
+        callback(null, pinnedAddress.address, pinnedAddress.family);
       },
     } as any, (response) => {
       const status = response.statusCode || 0;
