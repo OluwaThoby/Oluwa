@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     db = neon(process.env.DATABASE_URL);
-    const [task] = await db`
+    const taskRows = await db`
       INSERT INTO public.agent_tasks
         (agent_key, task_type, title, instructions, input, status, priority,
          requires_approval, requested_by, started_at)
@@ -52,7 +52,8 @@ export async function POST(request: Request) {
          ${JSON.stringify({ goal })}::jsonb, 'running', 80, false, 'owner', NOW())
       RETURNING id
     `;
-    taskId = task.id;
+    taskId = taskRows[0]?.id;
+    if (!taskId) throw new Error('The orchestrator task could not be recorded.');
 
     const result = await generateText({
       model: MODEL,
