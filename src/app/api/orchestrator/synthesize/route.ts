@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const db = neon(process.env.DATABASE_URL);
     const rows = await db`
       WITH lock_key AS MATERIALIZED (
-        SELECT pg_advisory_xact_lock(hashtext(${parentId}))
+        SELECT pg_advisory_xact_lock(hashtextextended(${parentId}, 0))
       ), parent AS MATERIALIZED (
         SELECT id, title, output
         FROM public.agent_tasks
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
                LEFT(COALESCE(output->>'deliverable', output::text), 5000) AS deliverable
         FROM public.agent_tasks
         WHERE input->>'parent_task_id' = ${parentId}
+          AND task_type <> 'team_synthesis'
       ), summary AS (
         SELECT COUNT(*)::int AS total,
                COUNT(*) FILTER (WHERE status = 'succeeded')::int AS completed,
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
                COUNT(*) FILTER (WHERE status = 'succeeded')::int AS completed
         FROM public.agent_tasks
         WHERE input->>'parent_task_id' = ${parentId}
+          AND task_type <> 'team_synthesis'
       `;
       const total = Number(state[0]?.total ?? 0);
       const completed = Number(state[0]?.completed ?? 0);
