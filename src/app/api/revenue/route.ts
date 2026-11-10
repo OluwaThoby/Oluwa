@@ -36,9 +36,11 @@ export async function POST(req:Request){
   if(clean.some(x=>x.description.length<2||x.quantity<=0||!Number.isFinite(x.unit_price)||x.unit_price<0))return NextResponse.json({error:'Check each line description, quantity and unit price.'},{status:400});
   const subtotal=Math.round(clean.reduce((s,x)=>s+x.quantity*x.unit_price,0)*100)/100;const tax=money(b.tax_amount??0);
   if(!Number.isFinite(tax)||subtotal+tax<=0)return NextResponse.json({error:'Invoice total must be greater than zero.'},{status:400});
-  const due=typeof b.due_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(b.due_date)?b.due_date:null;
+  const due=b.due_date?dateOnly(b.due_date):null;if(b.due_date&&!due)return NextResponse.json({error:'Enter a valid invoice due date.'},{status:400});
   const notes=typeof b.notes==='string'?b.notes.trim().slice(0,3000):null;
-  const projectId=typeof b.project_id==='string'&&b.project_id.trim()?b.project_id.trim():null;\n  if(projectId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId))return NextResponse.json({error:'Choose a valid project.'},{status:400});\n  const rows=await db`INSERT INTO public.agency_invoices(client_id,project_id,invoice_number,currency,line_items,subtotal,tax_amount,total,due_date,notes) SELECT c.id,pr.id,'INV-'||to_char(now(),'YYMMDD')||'-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,6)),${currency},${JSON.stringify(clean)}::jsonb,${subtotal},${tax},${subtotal+tax},${due},${notes} FROM public.clients c LEFT JOIN public.projects pr ON pr.id=${projectId} AND pr.client_id=c.id WHERE c.id=${clientId} AND (${projectId}::uuid IS NULL OR pr.id IS NOT NULL) RETURNING *`;
+  const projectId=typeof b.project_id==='string'&&b.project_id.trim()?b.project_id.trim():null;
+  if(projectId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId))return NextResponse.json({error:'Choose a valid project.'},{status:400});
+  const rows=await db`INSERT INTO public.agency_invoices(client_id,project_id,invoice_number,currency,line_items,subtotal,tax_amount,total,due_date,notes) SELECT c.id,pr.id,'INV-'||to_char(now(),'YYMMDD')||'-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,6)),${currency},${JSON.stringify(clean)}::jsonb,${subtotal},${tax},${subtotal+tax},${due},${notes} FROM public.clients c LEFT JOIN public.projects pr ON pr.id=${projectId} AND pr.client_id=c.id WHERE c.id=${clientId} AND (${projectId}::uuid IS NULL OR pr.id IS NOT NULL) RETURNING *`;
   if(!rows[0])return NextResponse.json({error:'Client not found.'},{status:404});
   await db`INSERT INTO public.activity_log(department,event_type,summary,entity_type,entity_id,metadata) VALUES('finance','invoice_draft_created',${'Invoice draft '+rows[0].invoice_number+' created'},'invoice',${rows[0].id},${JSON.stringify({total:rows[0].total,currency})}::jsonb)`;
   return NextResponse.json({invoice:rows[0]},{status:201});
@@ -53,7 +55,7 @@ export async function POST(req:Request){
  if(action==='record_payment'){
   const id=String(b.invoice_id||''),amount=money(b.amount),method=['bank_transfer','cash','card','payment_link','other'].includes(b.method)?b.method:'other';
   if(!id||!Number.isFinite(amount)||amount<=0)return NextResponse.json({error:'Enter a valid payment amount.'},{status:400});
-  const date=typeof b.payment_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(b.payment_date)?b.payment_date:null;
+  const date=b.payment_date?dateOnly(b.payment_date):null;if(b.payment_date&&!date)return NextResponse.json({error:'Enter a valid payment date.'},{status:400});
   const reference=typeof b.reference==='string'?b.reference.trim().slice(0,180):null,notes=typeof b.notes==='string'?b.notes.trim().slice(0,1000):null;
   const rows=await db`WITH target AS (SELECT id,currency,total,amount_paid,status FROM public.agency_invoices WHERE id=${id} AND status IN ('issued','partially_paid','overdue') FOR UPDATE), added AS (INSERT INTO public.agency_payments(invoice_id,amount,currency,payment_date,method,reference,notes) SELECT id,${amount},currency,COALESCE(${date}::date,CURRENT_DATE),${method},${reference},${notes} FROM target WHERE total-amount_paid>=${amount} RETURNING invoice_id,amount), updated AS (UPDATE public.agency_invoices i SET amount_paid=i.amount_paid+a.amount,status=CASE WHEN i.amount_paid+a.amount>=i.total THEN 'paid' ELSE 'partially_paid' END,updated_at=now() FROM added a WHERE i.id=a.invoice_id RETURNING i.*) SELECT updated.*,added.amount AS recorded_amount FROM updated JOIN added ON added.invoice_id=updated.id`;
   if(!rows[0])return NextResponse.json({error:'Payment exceeds the remaining balance, or the invoice is not open for payment.'},{status:409});
@@ -63,7 +65,7 @@ export async function POST(req:Request){
  if(action==='create_retainer'){
   const clientId=String(b.client_id||''),name=String(b.service_name||'').trim().slice(0,180),amount=money(b.amount),currency=String(b.currency||'NGN').toUpperCase(),cycle=b.billing_cycle;
   if(!clientId||name.length<2||!Number.isFinite(amount)||amount<=0||!currencyOk(currency)||!['monthly','quarterly','annual'].includes(cycle))return NextResponse.json({error:'Complete the client, service, amount, currency and billing cycle.'},{status:400});
-  const next=typeof b.next_billing_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(b.next_billing_date)?b.next_billing_date:null;if(!next)return NextResponse.json({error:'Choose the next billing date.'},{status:400});
+  const next=dateOnly(b.next_billing_date);if(!next)return NextResponse.json({error:'Choose a valid next billing date.'},{status:400});
   const rows=await db`INSERT INTO public.agency_retainers(client_id,service_name,description,amount,currency,billing_cycle,next_billing_date) SELECT id,${name},${String(b.description||'').trim().slice(0,1000)},${amount},${currency},${cycle},${next} FROM public.clients WHERE id=${clientId} RETURNING *`;
   if(!rows[0])return NextResponse.json({error:'Client not found.'},{status:404});
   await db`INSERT INTO public.activity_log(department,event_type,summary,entity_type,entity_id,metadata) VALUES('finance','retainer_created',${'Recurring service tracked: '+name},'retainer',${rows[0].id},${JSON.stringify({amount,currency,cycle})}::jsonb)`;
@@ -72,7 +74,7 @@ export async function POST(req:Request){
  if(action==='create_expense'){
   const description=String(b.description||'').trim().slice(0,180),amount=money(b.amount),currency=String(b.currency||'NGN').toUpperCase();
   if(description.length<2||!Number.isFinite(amount)||amount<=0||!currencyOk(currency))return NextResponse.json({error:'Enter a description, valid amount and currency.'},{status:400});
-  const date=typeof b.expense_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(b.expense_date)?b.expense_date:null;
+  const date=b.expense_date?dateOnly(b.expense_date):null;if(b.expense_date&&!date)return NextResponse.json({error:'Enter a valid expense date.'},{status:400});
   const rows=await db`INSERT INTO public.agency_expenses(description,category,amount,currency,expense_date,vendor,reference,notes) VALUES(${description},${String(b.category||'other').slice(0,80)},${amount},${currency},COALESCE(${date}::date,CURRENT_DATE),${String(b.vendor||'').trim().slice(0,180)},${String(b.reference||'').trim().slice(0,180)},${String(b.notes||'').trim().slice(0,1000)}) RETURNING *`;
   await db`INSERT INTO public.activity_log(department,event_type,summary,entity_type,entity_id,metadata) VALUES('finance','expense_recorded',${'Expense recorded: '+description},'expense',${rows[0].id},${JSON.stringify({amount,currency})}::jsonb)`;
   return NextResponse.json({expense:rows[0]},{status:201});
