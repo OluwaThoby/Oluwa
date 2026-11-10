@@ -98,7 +98,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       VALUES (${prospect.id},${audit?.id || null},${JSON.stringify(proposal)}::jsonb,'draft')
       RETURNING id,created_at,status
     `;
-    return NextResponse.json({ proposal: { id:saved[0].id, created_at:saved[0].created_at, status:saved[0].status, ...proposal } }, { status: 201 });
+    return NextResponse.json({ proposal: { ...proposal, id:saved[0].id, created_at:saved[0].created_at, record_status:saved[0].status } }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not prepare proposal.' }, { status: 500 });
   }
