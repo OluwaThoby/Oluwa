@@ -6,11 +6,10 @@ const base = {
   business_email: 'owner@example.com',
   source_url: 'https://example.com/contact',
   consent_basis: 'explicit_consent',
-  contact_reviewed: true,
   status: 'discovered',
 };
 
-test('contact requires recorded evidence, source and human review', () => {
+test('contact requires recorded evidence and source before human approval', () => {
   const result = evaluateProspectContactReadiness(base);
   assert.equal(result.readyForHumanApproval, true);
   assert.equal(result.sendEnabled, false);
@@ -20,7 +19,6 @@ test('missing evidence is not treated as permission', () => {
   const result = evaluateProspectContactReadiness({ ...base, consent_basis: null, contact_reviewed: false });
   assert.equal(result.readyForHumanApproval, false);
   assert.ok(result.reasons.includes('contact_permission_or_lawful_basis_not_reviewed'));
-  assert.ok(result.reasons.includes('human_contact_review_required'));
 });
 
 test('suppressed contacts are never ready', () => {
