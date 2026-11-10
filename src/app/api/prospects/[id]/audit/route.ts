@@ -193,8 +193,6 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       } as Record<string,string>)[f.key] || 'Review this item and confirm whether it affects this page.' ,
     }));
     const elapsed = Date.now() - started;
-    const opportunity = scoreProspectOpportunity({ website_status: 'active', audit_score: score, audit_findings: findings });
-    await db`UPDATE public.prospects SET opportunity_score = ${opportunity.score} WHERE id = ${prospect.id}`;
     const saved = await db`
       INSERT INTO public.seo_audits
         (prospect_id,website_url,overall_score,findings,recommendations,provider,verified_at)
@@ -214,6 +212,8 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
         'AgencyOS HTML Inspector', NOW())
       RETURNING id,overall_score,website_url,verified_at
     `;
+    const opportunity = scoreProspectOpportunity({ website_status: 'active', audit_score: score, audit_findings: findings });
+    await db`UPDATE public.prospects SET opportunity_score = ${opportunity.score} WHERE id = ${prospect.id}`;
     return NextResponse.json({
       audit: { ...saved[0], findings, recommendations, response_time_ms: elapsed },
       notice: 'This is a first-pass public HTML inspection, not a full Lighthouse or search-ranking audit.',
