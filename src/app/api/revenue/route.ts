@@ -6,7 +6,7 @@ async function owner(){const {data}=await auth.getSession();const email=data?.us
 const currencyOk=(v:unknown)=>typeof v==='string'&&/^[A-Z]{3}$/.test(v);
 const money=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>=0?Math.round((n+Number.EPSILON)*100)/100:NaN;};
 const dateOnly=(v:unknown):string|null=>{
- if(typeof v!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return null;
+ if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v))return null;
  const [y,m,d]=v.split('-').map(Number);
  const date=new Date(Date.UTC(y,m-1,d));
  return date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?v:null;
