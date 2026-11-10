@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
+import { isValidCron } from '@/lib/cron-validation.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +13,6 @@ const ALLOWED_JOB_TYPES = new Set([
   'report_generation',
   'general',
 ]);
-
-const CRON_RANGES: Array<[number, number]> = [
-  [0, 59], // minute
-  [0, 23], // hour
-  [1, 31], // day of month
-  [1, 12], // month
-  [0, 7],  // day of week (0 and 7 are Sunday)
-];
 
 async function isOwner() {
   const { data } = await auth.getSession();
