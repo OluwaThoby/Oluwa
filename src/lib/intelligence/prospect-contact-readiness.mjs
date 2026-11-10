@@ -3,7 +3,7 @@
  * Draft preparation is separate from permission to send.
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ACCEPTED_EVIDENCE = new Set(['explicit_consent','existing_customer_relationship','legitimate_interest_reviewed','public_business_contact_reviewed']);
+const ACCEPTED_EVIDENCE = new Set(['explicit_consent','existing_customer_relationship','legitimate_interest_reviewed']);
 export function evaluateProspectContactReadiness(prospect = {}) {
   const reasons = [];
   const email = typeof prospect.business_email === 'string' ? prospect.business_email.trim() : '';
