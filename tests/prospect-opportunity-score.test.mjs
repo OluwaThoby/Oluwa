@@ -29,3 +29,26 @@ test('unknown or unexpected statuses fail conservatively', () => {
   assert.equal(result.score, 15);
   assert.equal(result.basis, 'website_status_only');
 });
+
+test('a real limited-scope audit drives score from observed audit quality', () => {
+  const result = scoreProspectOpportunity({
+    website_status: 'active',
+    audit_score: 52,
+    audit_findings: [
+      { key: 'title', severity: 'high' },
+      { key: 'viewport', severity: 'high' },
+      { key: 'meta', severity: 'medium' },
+      { key: 'canonical', severity: 'low' },
+      { key: 'https', severity: 'pass' },
+    ],
+  });
+  assert.equal(result.score, 41);
+  assert.equal(result.band, 'medium');
+  assert.deepEqual(result.reasons, ['2_high_severity_audit_gaps', '1_medium_severity_audit_gaps', '1_low_severity_audit_gaps']);
+  assert.equal(result.confidence, 'verified_limited_scope');
+});
+
+test('audit score is capped and malformed audit evidence is ignored', () => {
+  assert.equal(scoreProspectOpportunity({ website_status: 'active', audit_score: 0, audit_findings: [{ severity: 'high' }] }).score, 85);
+  assert.equal(scoreProspectOpportunity({ website_status: 'active', audit_score: 101, audit_findings: [{ severity: 'high' }] }).score, 8);
+});
