@@ -52,7 +52,8 @@ export async function POST(request: Request) {
          ${JSON.stringify({ goal })}::jsonb, 'running', 80, false, 'owner', NOW())
       RETURNING id
     `;
-    taskId = taskRows[0]?.id;
+    const insertedTasks = taskRows as unknown as Array<{ id: string }>;
+    taskId = insertedTasks[0]?.id;
     if (!taskId) throw new Error('The orchestrator task could not be recorded.');
 
     const result = await generateText({
