@@ -53,3 +53,34 @@ export function evaluateExecutionGrant({ permission, grant, now = new Date(), ex
   }
   return { allowed: true, reason: 'valid_scoped_grant' };
 }
+
+/**
+ * Converts a persisted Neon row (snake_case) into the canonical policy shape.
+ * Rejects malformed rows rather than silently treating missing fields as safe.
+ */
+export function normalizeExecutionGrant(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  const permissions = row.permissions;
+  if (!Array.isArray(permissions) || permissions.some((value) => typeof value !== 'string')) return null;
+  const grant = {
+    id: typeof row.id === 'string' ? row.id : null,
+    status: row.status,
+    permissions,
+    scope: row.resource_scope,
+    startsAt: row.starts_at instanceof Date ? row.starts_at.toISOString() : row.starts_at,
+    expiresAt: row.expires_at instanceof Date ? row.expires_at.toISOString() : row.expires_at,
+    revokedAt: row.revoked_at instanceof Date ? row.revoked_at.toISOString() : row.revoked_at,
+    maxUses: row.max_uses,
+    uses: row.uses_count,
+    agentKey: row.agent_key,
+    clientId: row.client_id,
+    projectId: row.project_id,
+    environment: row.environment,
+    resourceRef: row.resource_ref,
+  };
+  if (typeof grant.status !== 'string' ||
+      typeof grant.scope !== 'string' ||
+      typeof grant.agentKey !== 'string' ||
+      typeof grant.environment !== 'string') return null;
+  return grant;
+}
