@@ -15,26 +15,42 @@ export type AgencyTextResult = {
 /**
  * Provider-neutral boundary for AgencyOS Intelligence.
  *
- * Agency workflows depend on this contract, not on a vendor SDK. The current
- * hosted adapter is a temporary inference transport; a self-hosted student
- * model can implement the same contract without changing agency workflows.
+ * Agency workflows depend on this contract, not on a vendor SDK. The hosted
+ * adapter is temporary inference transport; a self-hosted student model can
+ * implement the same contract without changing agency workflows.
  */
 export interface AgencyModelRuntime {
   generate(request: AgencyTextRequest): Promise<AgencyTextResult>;
 }
 
-const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
-
 class VercelGatewayRuntime implements AgencyModelRuntime {
   async generate(request: AgencyTextRequest): Promise<AgencyTextResult> {
-    const model = process.env.AI_GATEWAY_MODEL || DEFAULT_MODEL;
+    const model = process.env.AI_GATEWAY_MODEL?.trim();
+
+    // Never silently select a hosted model: model choice and any metered use
+    // must be explicit in deployment configuration.
+    if (!model) {
+      throw new Error(
+        'AI_GATEWAY_MODEL is not configured. Set it to an approved provider/model ID before enabling hosted inference.',
+      );
+    }
+
+    if (!/^[a-z0-9][a-z0-9.-]*\/[a-z0-9][a-z0-9._-]*$/i.test(model)) {
+      throw new Error(
+        'AI_GATEWAY_MODEL must be an exact provider/model ID from the live AI Gateway catalog.',
+      );
+    }
+
+    const maxOutputTokens = Math.min(
+      4000,
+      Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)),
+    );
+
     const result = await generateText({
       model,
       system: request.system,
       prompt: request.prompt,
-      ...(request.maxOutputTokens
-        ? { maxOutputTokens: request.maxOutputTokens }
-        : {}),
+      maxOutputTokens,
     });
 
     return {
