@@ -119,3 +119,40 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Could not load proposal history.' }, { status: 500 });
   }
 }
+
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!process.env.DATABASE_URL) return NextResponse.json({ error: 'Database is not configured.' }, { status: 503 });
+  try {
+    const { id } = await context.params;
+    const body = await request.json();
+    const proposalId = typeof body.proposal_id === 'string' ? body.proposal_id : '';
+    const fee = typeof body.fee === 'string' ? body.fee.trim().slice(0, 80) : '';
+    const currency = typeof body.currency === 'string' ? body.currency.trim().slice(0, 12) : 'To be agreed';
+    const timeline = typeof body.timeline === 'string' ? body.timeline.trim().slice(0, 160) : '';
+    if (!proposalId || !timeline) return NextResponse.json({ error: 'A proposal ID and delivery timeline are required.' }, { status: 400 });
+    const db = neon(process.env.DATABASE_URL);
+    const rows = await db`
+      SELECT id,proposal FROM public.agency_proposals
+      WHERE id=${proposalId} AND prospect_id=${id} AND status='draft' LIMIT 1
+    `;
+    if (!rows[0]) return NextResponse.json({ error: 'Editable draft not found.' }, { status: 404 });
+    const proposal = rows[0].proposal as Record<string, any>;
+    proposal.commercial_terms = {
+      ...proposal.commercial_terms,
+      proposed_fee: fee || null,
+      currency: currency || 'To be agreed',
+      delivery_timeline: timeline
+    };
+    const updated = await db`
+      UPDATE public.agency_proposals
+      SET proposal=${JSON.stringify(proposal)}::jsonb, updated_at=now()
+      WHERE id=${proposalId} AND prospect_id=${id}
+      RETURNING id,updated_at
+    `;
+    return NextResponse.json({ proposal: { ...proposal, id: updated[0].id, updated_at: updated[0].updated_at } });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not update proposal.' }, { status: 500 });
+  }
+}
