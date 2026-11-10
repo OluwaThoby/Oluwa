@@ -10,7 +10,7 @@ export async function GET(){
  if(!process.env.DATABASE_URL)return NextResponse.json({error:'Database is not configured.'},{status:503});
  try{const db=neon(process.env.DATABASE_URL);
  const [clients,invoices,retainers,expenses,summary]=await Promise.all([
-  db`SELECT id,business_name,currency FROM public.clients ORDER BY business_name LIMIT 500`,
+  db`SELECT id,business_name FROM public.clients ORDER BY business_name LIMIT 500`,
   db`SELECT i.*,c.business_name,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_date',p.payment_date,'method',p.method,'reference',p.reference,'notes',p.notes) ORDER BY p.payment_date DESC) FROM public.agency_payments p WHERE p.invoice_id=i.id),'[]'::json) AS payments FROM public.agency_invoices i JOIN public.clients c ON c.id=i.client_id ORDER BY i.created_at DESC LIMIT 200`,
   db`SELECT r.*,c.business_name FROM public.agency_retainers r JOIN public.clients c ON c.id=r.client_id ORDER BY r.next_billing_date ASC LIMIT 200`,
   db`SELECT * FROM public.agency_expenses ORDER BY expense_date DESC,created_at DESC LIMIT 100`,
