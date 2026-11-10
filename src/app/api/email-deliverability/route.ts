@@ -27,8 +27,8 @@ export async function GET() {
       db`SELECT status, count(*)::int AS total FROM public.messages WHERE direction='outbound' AND created_at >= now() - interval '30 days' GROUP BY status`,
     ]);
 
-    const eventCounts = Object.fromEntries(events.map((row: { event_type: string; total: number }) => [row.event_type, row.total]));
-    const uniqueByType = Object.fromEntries(events.map((row: { event_type: string; unique_messages: number }) => [row.event_type, Number(row.unique_messages ?? 0)]));
+    const eventCounts = Object.fromEntries(events.map((row) => [String(row.event_type), Number(row.total ?? 0)]));
+    const uniqueByType = Object.fromEntries(events.map((row) => [String(row.event_type), Number(row.unique_messages ?? 0)]));
     const providerAccepted = Number(uniqueByType.accepted ?? 0);
     const providerRejected = Number(uniqueByType.rejected ?? 0);
     const providerAttempts = providerAccepted + providerRejected;
