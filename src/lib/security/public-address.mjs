@@ -31,9 +31,14 @@ function isPublicIpv6(address) {
   // Only global-unicast 2000::/3 addresses are eligible. This excludes
   // loopback, unspecified, link-local, ULA, multicast, mapped IPv4 and NAT64.
   if (!/^[23]/.test(value)) return false;
+
+  // 2001:0000::/23 is reserved for protocol assignments; this also covers
+  // benchmarking (2001:2::/48) and ORCHID (2001:10::/28, 2001:20::/28).
+  if (value.startsWith('2001:')) {
+    const secondHextet = Number.parseInt(value.split(':')[1] || '0', 16);
+    if (Number.isFinite(secondHextet) && secondHextet <= 0x01ff) return false;
+  }
   if (value.startsWith('2001:db8:') || value === '2001:db8') return false;
-  // Exclude special-purpose transition, benchmarking and ORCHID ranges.
-  if (/^2001:(?:0{0,3}[01]|0{0,2}10|0{0,2}20):/.test(value)) return false;
   if (value.startsWith('2002:')) return false; // 6to4
   return true;
 }
