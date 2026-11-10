@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
+import { scoreProspectOpportunity } from '@/lib/intelligence/prospect-opportunity-score.mjs';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
@@ -192,6 +193,8 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       } as Record<string,string>)[f.key] || 'Review this item and confirm whether it affects this page.' ,
     }));
     const elapsed = Date.now() - started;
+    const opportunity = scoreProspectOpportunity({ website_status: 'active', audit_score: score, audit_findings: findings });
+    await db`UPDATE public.prospects SET opportunity_score = ${opportunity.score} WHERE id = ${prospect.id}`;
     const saved = await db`
       INSERT INTO public.seo_audits
         (prospect_id,website_url,overall_score,findings,recommendations,provider,verified_at)
