@@ -23,10 +23,10 @@ export function evaluateProspectContactReadiness(prospect = {}) {
   if (!ACCEPTED_EVIDENCE.has(prospect.consent_basis)) {
     reasons.push('contact_permission_or_lawful_basis_not_reviewed');
   }
-  if (prospect.contact_reviewed !== true) reasons.push('human_contact_review_required');
   return {
     readyForHumanApproval: reasons.length === 0,
     sendEnabled: false,
+    nextStep: 'human_review_and_separate_approval',
     reasons,
     evidenceType: ACCEPTED_EVIDENCE.has(prospect.consent_basis) ? prospect.consent_basis : null,
     disclaimer: 'This checklist does not determine legal compliance or override email-provider terms.',
