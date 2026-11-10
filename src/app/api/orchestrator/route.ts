@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { generateText } from 'ai';
+import { generateAgencyText } from '@/lib/intelligence/model-runtime';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
-
-// AI SDK routes provider/model strings through Vercel AI Gateway.
-// Configure AI_GATEWAY_API_KEY or Vercel OIDC before invoking this endpoint.
-const MODEL = process.env.AI_GATEWAY_MODEL || 'deepseek/deepseek-v4-flash';
 
 async function isOwner() {
   const { data } = await auth.getSession();
@@ -56,8 +52,7 @@ export async function POST(request: Request) {
     taskId = insertedTasks[0]?.id;
     if (!taskId) throw new Error('The orchestrator task could not be recorded.');
 
-    const result = await generateText({
-      model: MODEL,
+    const result = await generateAgencyText({
       system: `You are the Chief of Staff for AgencyOS, a small owner-operated digital agency.
 Create a practical, revenue-aware execution plan. Prioritise website design and development as the core offer, followed by recurring maintenance and SEO.
 The agency serves Nigeria and international clients. Be commercially realistic for a lean solo operator.
@@ -70,7 +65,7 @@ Prefer the smallest useful next action over a vague long-term roadmap.`,
 
     const output = {
       plan: result.text,
-      model: MODEL,
+      model: result.model,
       generatedAt: new Date().toISOString(),
       usage: result.usage ?? null,
     };
@@ -83,7 +78,7 @@ Prefer the smallest useful next action over a vague long-term roadmap.`,
     `;
     await db`
       INSERT INTO public.agent_task_events (task_id, event_type, details)
-      VALUES (${taskId}, 'plan_generated', ${JSON.stringify({ model: MODEL })}::jsonb)
+      VALUES (${taskId}, 'plan_generated', ${JSON.stringify({ model: result.model })}::jsonb)
     `;
 
     return NextResponse.json({ taskId, ...output });
