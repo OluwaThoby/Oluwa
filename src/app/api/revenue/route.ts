@@ -4,7 +4,13 @@ import {auth} from '@/lib/auth';
 export const dynamic='force-dynamic';
 async function owner(){const {data}=await auth.getSession();const email=data?.user?.email;return Boolean(email&&process.env.OWNER_EMAIL&&email.toLowerCase()===process.env.OWNER_EMAIL.toLowerCase());}
 const currencyOk=(v:unknown)=>typeof v==='string'&&/^[A-Z]{3}$/.test(v);
-const money=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>=0?Math.round(n*100)/100:NaN;};
+const money=(v:unknown)=>{const n=Number(v);return Number.isFinite(n)&&n>=0?Math.round((n+Number.EPSILON)*100)/100:NaN;};
+const dateOnly=(v:unknown):string|null=>{
+ if(typeof v!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return null;
+ const [y,m,d]=v.split('-').map(Number);
+ const date=new Date(Date.UTC(y,m-1,d));
+ return date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?v:null;
+};
 export async function GET(){
  if(!(await owner()))return NextResponse.json({error:'Unauthorized'},{status:401});
  if(!process.env.DATABASE_URL)return NextResponse.json({error:'Database is not configured.'},{status:503});
@@ -22,7 +28,7 @@ export async function GET(){
 export async function POST(req:Request){
  if(!(await owner()))return NextResponse.json({error:'Unauthorized'},{status:401});
  if(!process.env.DATABASE_URL)return NextResponse.json({error:'Database is not configured.'},{status:503});
- try{const b=await req.json();const db=neon(process.env.DATABASE_URL);const action=String(b.action||'');
+ try{const b=await req.json();if(!b||typeof b!=='object'||Array.isArray(b))return NextResponse.json({error:'A valid request body is required.'},{status:400});const db=neon(process.env.DATABASE_URL);const action=String(b.action||'');
  if(action==='create_invoice'){
   const clientId=String(b.client_id||'');const currency=String(b.currency||'NGN').toUpperCase();const items=Array.isArray(b.line_items)?b.line_items.slice(0,30):[];
   if(!clientId||!currencyOk(currency)||!items.length)return NextResponse.json({error:'Choose a client and add at least one invoice item.'},{status:400});
@@ -72,5 +78,5 @@ export async function POST(req:Request){
   return NextResponse.json({expense:rows[0]},{status:201});
  }
  return NextResponse.json({error:'Unknown revenue action.'},{status:400});
- }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Revenue action failed.'},{status:500});}
+ }catch{return NextResponse.json({error:'Revenue action failed. Check the submitted details and try again.'},{status:500});}
 }
