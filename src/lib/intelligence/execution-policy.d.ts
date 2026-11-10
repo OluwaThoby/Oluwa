@@ -6,9 +6,26 @@ export type ActionClassification = {
   financialApprovalRequired: boolean;
   executionGranted: false;
 };
+export type ExecutionGrantState = {
+  permissions?: ExecutionPermission[];
+  scope?: string;
+  status?: 'active' | 'revoked' | 'expired' | 'exhausted' | string;
+  startsAt?: string;
+  expiresAt?: string;
+  revokedAt?: string | null;
+  maxUses?: number | null;
+  uses?: number;
+  agentKey?: string;
+  clientId?: string | null;
+  projectId?: string | null;
+  environment?: 'workspace' | 'preview' | 'production';
+  resourceRef?: string;
+};
+export type ExecutionGrantExpectation = Partial<Pick<ExecutionGrantState, 'agentKey' | 'clientId' | 'projectId' | 'environment' | 'resourceRef'>>;
 export function classifyRequestedActions(text?: string): ActionClassification;
 export function evaluateExecutionGrant(input: {
   permission: ExecutionPermission;
-  grant?: { permissions?: ExecutionPermission[]; scope?: string; expiresAt?: string; revokedAt?: string | null; maxUses?: number | null; uses?: number };
+  grant?: ExecutionGrantState;
   now?: Date;
+  expected?: ExecutionGrantExpectation;
 }): { allowed: boolean; reason: string };
