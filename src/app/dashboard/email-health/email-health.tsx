@@ -14,6 +14,7 @@ type Domain = {
   last_checked_at: string | null;
   verified_at: string | null;
 };
+type DnsResult = { checks: Record<string, { status: string; hostname?: string; note?: string }> };
 type Payload = {
   domains: Domain[];
   suppressionCount: number;
@@ -44,7 +45,7 @@ export default function EmailHealth() {
   const [notice, setNotice] = useState('');
   const [dkimSelector, setDkimSelector] = useState('');
   const [dnsChecking, setDnsChecking] = useState(false);
-  const [dnsResult, setDnsResult] = useState<any>(null);
+  const [dnsResult, setDnsResult] = useState<DnsResult | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,7 +185,7 @@ export default function EmailHealth() {
               <label>DKIM selector<input className="field" value={dkimSelector} onChange={e => setDkimSelector(e.target.value)} placeholder="Selector supplied by your email provider" required /></label>
               <div className="actions"><button className="btn green" disabled={dnsChecking || !data.domains.length}>{dnsChecking ? 'Checking DNS…' : 'Check SPF, DKIM & DMARC'}</button></div>
             </form>
-            {dnsResult && <div className="metric-grid" style={{ marginTop: 16 }}>{Object.entries(dnsResult.checks).map(([key, value]: [string, any]) => <div className="metric" key={key}><div className="metric-label">{label(key)}</div><div className="metric-value">{label(value.status)}</div><div className="metric-note">{value.hostname || value.note || ''}</div></div>)}</div>}
+            {dnsResult && <div className="metric-grid" style={{ marginTop: 16 }}>{Object.entries(dnsResult.checks).map(([key, value]) => <div className="metric" key={key}><div className="metric-label">{label(key)}</div><div className="metric-value">{label(value.status)}</div><div className="metric-note">{value.hostname || value.note || ''}</div></div>)}</div>}
             <p className="notice">Registration does not verify DNS. The read-only checker queries public TXT records using the DKIM selector supplied by your email provider. DNS presence alone does not prove messages are signed correctly. No message can be sent from this screen.</p>
           </section>
           <section className="panel">
