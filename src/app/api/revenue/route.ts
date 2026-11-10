@@ -26,7 +26,7 @@ export async function POST(req:Request){
  if(action==='create_invoice'){
   const clientId=String(b.client_id||'');const currency=String(b.currency||'NGN').toUpperCase();const items=Array.isArray(b.line_items)?b.line_items.slice(0,30):[];
   if(!clientId||!currencyOk(currency)||!items.length)return NextResponse.json({error:'Choose a client and add at least one invoice item.'},{status:400});
-  const clean=items.map((x:any)=>({description:String(x.description||'').trim().slice(0,180),quantity:Math.max(0,Math.min(100000,Number(x.quantity)||0)),unit_price:money(x.unit_price)}));
+  const clean: {description:string;quantity:number;unit_price:number}[]=items.map((x:any)=>({description:String(x.description||'').trim().slice(0,180),quantity:Math.max(0,Math.min(100000,Number(x.quantity)||0)),unit_price:money(x.unit_price)}));
   if(clean.some(x=>x.description.length<2||x.quantity<=0||!Number.isFinite(x.unit_price)||x.unit_price<0))return NextResponse.json({error:'Check each line description, quantity and unit price.'},{status:400});
   const subtotal=Math.round(clean.reduce((s,x)=>s+x.quantity*x.unit_price,0)*100)/100;const tax=money(b.tax_amount??0);
   if(!Number.isFinite(tax)||subtotal+tax<=0)return NextResponse.json({error:'Invoice total must be greater than zero.'},{status:400});
