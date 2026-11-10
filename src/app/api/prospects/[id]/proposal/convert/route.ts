@@ -71,7 +71,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             'source_proposal',s.proposal
           ),
           CASE
-            WHEN COALESCE(s.proposal->'commercial_terms'->>'proposed_fee','') ~ '^\\s*[0-9]+([.][0-9]{1,2})?\\s*$'
+            WHEN COALESCE(s.proposal->'commercial_terms'->>'proposed_fee','') ~ '^[[:space:]]*[0-9]+([.][0-9]{1,2})?[[:space:]]*$'
             THEN trim(s.proposal->'commercial_terms'->>'proposed_fee')::numeric
             ELSE NULL
           END,
