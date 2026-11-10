@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
 import { generateAgencyText } from '@/lib/intelligence/model-runtime';
+import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -44,10 +45,12 @@ export async function POST(
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Database is not configured.' }, { status: 503 });
   }
-  if (!process.env.AI_GATEWAY_MODEL?.trim()) {
+  const runtimeReadiness = getAgencyModelRuntimeReadiness();
+  if (!runtimeReadiness.configured) {
     return NextResponse.json({
-      error: 'The task is safely queued, but execution is unavailable until an approved model is configured.',
+      error: 'The task is safely queued, but the selected model runtime is not fully configured.',
       code: 'MODEL_NOT_CONFIGURED',
+      runtime: runtimeReadiness.runtime,
     }, { status: 503 });
   }
 
