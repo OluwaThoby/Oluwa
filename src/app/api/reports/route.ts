@@ -16,6 +16,6 @@ export async function GET(){
    db`SELECT currency,COUNT(*)::int AS invoice_count,COALESCE(SUM(total),0)::numeric AS invoiced,COALESCE(SUM(amount_paid),0)::numeric AS collected,COALESCE(SUM(GREATEST(total-amount_paid,0)) FILTER(WHERE status NOT IN ('draft','void')),0)::numeric AS outstanding,COALESCE(SUM(GREATEST(total-amount_paid,0)) FILTER(WHERE status NOT IN ('draft','void') AND due_date<CURRENT_DATE),0)::numeric AS overdue FROM public.agency_invoices GROUP BY currency ORDER BY currency`,
    db`SELECT id,department,event_type,summary,entity_type,created_at FROM public.activity_log ORDER BY created_at DESC LIMIT 30`
   ]);
-  return NextResponse.json({generated_at:new Date().toISOString(),prospects,audits:audits[0]||{total:0,average_score:null,below_50:0,80_plus:0},projects,clients:clients[0]||{total:0,active:0},invoices,activity});
+  return NextResponse.json({generated_at:new Date().toISOString(),prospects,audits:audits[0]||{total:0,average_score:null,below_50:0,'80_plus':0},projects,clients:clients[0]||{total:0,active:0},invoices,activity});
  }catch{return NextResponse.json({error:'Could not generate the agency report.'},{status:500});}
 }
