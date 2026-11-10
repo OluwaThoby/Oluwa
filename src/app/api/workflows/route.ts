@@ -24,46 +24,6 @@ async function isOwner() {
   );
 }
 
-function isValidCronField(field: string, min: number, max: number) {
-  if (!field) return false;
-
-  return field.split(',').every((part) => {
-    if (!part) return false;
-
-    const pieces = part.split('/');
-    if (pieces.length > 2) return false;
-
-    const [base, stepText] = pieces;
-    if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText)) return false;
-      const step = Number(stepText);
-      if (step < 1 || step > max - min + 1) return false;
-    }
-
-    if (base === '*') return true;
-
-    if (base.includes('-')) {
-      const range = base.split('-');
-      if (range.length !== 2 || !range.every((v) => /^\d+$/.test(v))) return false;
-      const start = Number(range[0]);
-      const end = Number(range[1]);
-      return start >= min && end <= max && start <= end;
-    }
-
-    if (!/^\d+$/.test(base)) return false;
-    const value = Number(base);
-    return value >= min && value <= max;
-  });
-}
-
-function isValidCron(expression: string) {
-  const fields = expression.trim().split(/\s+/);
-  return fields.length === 5 && fields.every((field, index) => {
-    const [min, max] = CRON_RANGES[index];
-    return isValidCronField(field, min, max);
-  });
-}
-
 export async function GET() {
   if (!(await isOwner())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
