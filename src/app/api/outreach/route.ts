@@ -11,9 +11,9 @@ export async function GET(){
     const [prospects,messages,suppressions]=await Promise.all([
       db`SELECT id,business_name,business_email,website_url,category,city,country,status,consent_basis FROM public.prospects WHERE status<>'suppressed' ORDER BY created_at DESC LIMIT 500`,
       db`SELECT m.id,m.prospect_id,m.subject,m.body,m.status,m.created_at,m.approved_at,m.sent_at,p.business_name,p.business_email FROM public.messages m LEFT JOIN public.prospects p ON p.id=m.prospect_id WHERE m.direction='outbound' ORDER BY m.created_at DESC LIMIT 300`,
-      db`SELECT email FROM public.email_suppressions`,
+      db`SELECT email_normalized FROM public.email_suppressions`,
     ]);
-    const blocked=new Set(suppressions.map(row=>String(row.email).trim().toLowerCase()));
+    const blocked=new Set(suppressions.map(row=>String(row.email_normalized).trim().toLowerCase()));
     const safeProspects=prospects.filter(p=>!p.business_email||!blocked.has(String(p.business_email).trim().toLowerCase()));
     return NextResponse.json({prospects:safeProspects,messages,suppressionRegistryAvailable:true});
   }catch{
@@ -35,7 +35,7 @@ export async function POST(req:Request){
     if(!p.length)return NextResponse.json({error:'Prospect not found.'},{status:404});
     if(p[0].status==='suppressed'||p[0].status==='do_not_contact')return NextResponse.json({error:'This prospect is blocked from outreach.'},{status:409});
     if(!p[0].business_email)return NextResponse.json({error:'Add and verify a business email before preparing an email draft.'},{status:409});
-    const suppression=await db`SELECT 1 FROM public.email_suppressions WHERE lower(email)=lower(trim(${p[0].business_email})) LIMIT 1`;
+    const suppression=await db`SELECT 1 FROM public.email_suppressions WHERE lower(email_normalized)=lower(trim(${p[0].business_email})) LIMIT 1`;
     if(suppression.length)return NextResponse.json({error:'This email address is on the suppression list and cannot be used for outreach.'},{status:409});
     const rows=await db`INSERT INTO public.messages(prospect_id,direction,subject,body,status) VALUES(${prospectId},'outbound',${subject},${body},'draft') RETURNING id,prospect_id,subject,body,status,created_at`;
     return NextResponse.json({message:rows[0]},{status:201});
@@ -57,7 +57,7 @@ export async function PATCH(req:Request){
     if(!existing.length)return NextResponse.json({error:'Only unsent drafts can be edited.'},{status:409});
     if(existing[0].status==='suppressed'||existing[0].status==='do_not_contact')return NextResponse.json({error:'This prospect is blocked from outreach.'},{status:409});
     if(existing[0].business_email){
-      const suppression=await db`SELECT 1 FROM public.email_suppressions WHERE lower(email)=lower(trim(${existing[0].business_email})) LIMIT 1`;
+      const suppression=await db`SELECT 1 FROM public.email_suppressions WHERE lower(email_normalized)=lower(trim(${existing[0].business_email})) LIMIT 1`;
       if(suppression.length)return NextResponse.json({error:'This email address is suppressed. The draft cannot be edited for outreach.'},{status:409});
     }
     const rows=await db`UPDATE public.messages SET subject=${subject},body=${body} WHERE id=${id} AND direction='outbound' AND status='draft' RETURNING id,prospect_id,subject,body,status,created_at`;
