@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { scoreProspectOpportunity } from '@/lib/intelligence/prospect-opportunity-score.mjs';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { isPublicAddress } from '@/lib/security/public-address.mjs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -13,24 +14,6 @@ async function owner() {
   const email = data?.user?.email;
   return Boolean(email && process.env.OWNER_EMAIL &&
     email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase());
-}
-
-function isPrivateAddress(address: string) {
-  const version = isIP(address);
-  if (version === 4) {
-    const p = address.split('.').map(Number);
-    return p[0] === 0 || p[0] === 10 || p[0] === 127 ||
-      (p[0] === 169 && p[1] === 254) ||
-      (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
-      (p[0] === 192 && p[1] === 168) ||
-      p[0] >= 224;
-  }
-  if (version === 6) {
-    const a = address.toLowerCase();
-    return a === '::1' || a === '::' || a.startsWith('fc') ||
-      a.startsWith('fd') || a.startsWith('fe80:') || a.startsWith('::ffff:');
-  }
-  return true;
 }
 
 async function validatePublicUrl(raw: string) {
@@ -46,10 +29,10 @@ async function validatePublicUrl(raw: string) {
     throw new Error('Private or local network addresses cannot be audited.');
   }
   if (isIP(host)) {
-    if (isPrivateAddress(host)) throw new Error('Private IP addresses cannot be audited.');
+    if (!isPublicAddress(host)) throw new Error('Only globally routable public IP addresses can be audited.');
   } else {
     const records = await lookup(host, { all: true, verbatim: true });
-    if (!records.length || records.some(r => isPrivateAddress(r.address))) {
+    if (!records.length || records.some(r => !isPublicAddress(r.address))) {
       throw new Error('The website does not resolve exclusively to public IP addresses.');
     }
   }
