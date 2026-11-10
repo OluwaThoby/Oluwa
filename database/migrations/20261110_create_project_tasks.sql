@@ -16,3 +16,8 @@ CREATE INDEX IF NOT EXISTS project_tasks_project_due_idx
   ON public.project_tasks (project_id, due_at NULLS LAST, sort_order, created_at);
 CREATE INDEX IF NOT EXISTS project_tasks_status_due_idx
   ON public.project_tasks (status, due_at) WHERE status <> 'done';
+
+CREATE INDEX IF NOT EXISTS project_tasks_status_due_idx
+  ON public.project_tasks (status, due_at) WHERE status <> 'done';
+CREATE INDEX IF NOT EXISTS agency_proposals_prospect_created_idx
+  ON public.agency_proposals (prospect_id, created_at DESC);
