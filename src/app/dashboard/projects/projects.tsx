@@ -1,4 +1,5 @@
 'use client';
+import './project-styles.css';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 type Project={id:string;name:string;service_type:string;status:string;client_name:string|null;agreed_value:string|null;currency:string;task_total:number;task_done:number;next_due:string|null};
 type Task={id:string;title:string;description:string;status:string;priority:string;due_at:string|null};
