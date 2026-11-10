@@ -121,7 +121,7 @@ export async function POST(request: Request) {
         task: rows[0],
         message: approvalRequired
           ? 'Task saved and is waiting for owner approval. No external action has been taken.'
-          : 'Task queued. Execution remains disabled until a worker and required providers are configured.',
+          : 'Task queued. Draft-only execution is available when an approved model is configured; no external action is taken.',
       },
       { status: 201 },
     );
