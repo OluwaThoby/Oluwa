@@ -67,7 +67,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
                CASE WHEN submitted.due_at IS NULL THEN NULL ELSE submitted.due_at::date END,
                source.id
         FROM source CROSS JOIN target CROSS JOIN submitted
-        ON CONFLICT (project_id, source_agent_task_id)
+        ON CONFLICT (project_id, source_agent_task_id, title)
           WHERE source_agent_task_id IS NOT NULL
         DO NOTHING
         RETURNING id, project_id, title, description, priority, due_at
