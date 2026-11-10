@@ -42,6 +42,9 @@ export default function EmailHealth() {
   const [savingDomain, setSavingDomain] = useState(false);
   const [savingSuppression, setSavingSuppression] = useState(false);
   const [notice, setNotice] = useState('');
+  const [dkimSelector, setDkimSelector] = useState('');
+  const [dnsChecking, setDnsChecking] = useState(false);
+  const [dnsResult, setDnsResult] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +84,31 @@ export default function EmailHealth() {
       setError(err instanceof Error ? err.message : 'Could not register domain.');
     } finally {
       setSavingDomain(false);
+    }
+  }
+
+  async function checkDns(event: React.FormEvent) {
+    event.preventDefault();
+    if (!data?.domains.length) return;
+    setDnsChecking(true);
+    setError('');
+    setNotice('');
+    setDnsResult(null);
+    try {
+      const selected = data.domains[0];
+      const response = await fetch('/api/email-deliverability/dns-check', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ domain: selected.domain, from_address: selected.from_address, dkim_selector: dkimSelector }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'DNS authentication check failed.');
+      setDnsResult(result);
+      setNotice('DNS records checked. This is not proof of inbox placement or provider message signing.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'DNS authentication check failed.');
+    } finally {
+      setDnsChecking(false);
     }
   }
 
@@ -152,7 +180,12 @@ export default function EmailHealth() {
               <div className="actions"><button className="btn green" disabled={savingDomain}>{savingDomain ? 'Saving…' : 'Register domain'}</button></div>
             </form>
             {!data.domains.length ? <div className="empty">No sender domain registered. Email sending remains disabled.</div> : <div className="table-wrap"><table><thead><tr><th>DOMAIN / FROM</th><th>STATUS</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>ALIGNMENT</th></tr></thead><tbody>{data.domains.map(item => <tr key={item.id}><td><b>{item.domain}</b><span className="secondary">{item.from_address}</span></td><td><span className="badge">{label(item.status)}</span></td><td>{label(item.spf_status)}</td><td>{label(item.dkim_status)}</td><td>{label(item.dmarc_status)}</td><td>{label(item.alignment_status)}</td></tr>)}</tbody></table></div>}
-            <p className="notice">Registration does not verify DNS. SPF, DKIM, DMARC and alignment remain unknown until independently checked. No message can be sent from this screen.</p>
+            <form onSubmit={checkDns} className="form-grid" style={{ marginTop: 20 }}>
+              <label>DKIM selector<input className="field" value={dkimSelector} onChange={e => setDkimSelector(e.target.value)} placeholder="Selector supplied by your email provider" required /></label>
+              <div className="actions"><button className="btn green" disabled={dnsChecking || !data.domains.length}>{dnsChecking ? 'Checking DNS…' : 'Check SPF, DKIM & DMARC'}</button></div>
+            </form>
+            {dnsResult && <div className="metric-grid" style={{ marginTop: 16 }}>{Object.entries(dnsResult.checks).map(([key, value]: [string, any]) => <div className="metric" key={key}><div className="metric-label">{label(key)}</div><div className="metric-value">{label(value.status)}</div><div className="metric-note">{value.hostname || value.note || ''}</div></div>)}</div>}
+            <p className="notice">Registration does not verify DNS. The read-only checker queries public TXT records using the DKIM selector supplied by your email provider. DNS presence alone does not prove messages are signed correctly. No message can be sent from this screen.</p>
           </section>
           <section className="panel">
             <div className="panel-head"><div><h2>Suppression list</h2><div className="sub">Opt-outs, complaints and hard bounces must never be re-contacted.</div></div></div>
