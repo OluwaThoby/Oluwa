@@ -114,6 +114,25 @@ function firstMatch(html: string, pattern: RegExp) {
   return clean(html.match(pattern)?.[1] || '');
 }
 
+
+export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
+  if (!(await owner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const { id } = await context.params;
+    const db = neon(process.env.DATABASE_URL!);
+    const rows = await db`
+      SELECT id, website_url, overall_score, findings, recommendations, provider, verified_at
+      FROM public.seo_audits
+      WHERE prospect_id = ${id}
+      ORDER BY verified_at DESC NULLS LAST, created_at DESC
+      LIMIT 10
+    `;
+    return NextResponse.json({ audits: rows });
+  } catch {
+    return NextResponse.json({ error: 'Could not load audit history.' }, { status: 500 });
+  }
+}
+
 export async function POST(_req: Request, context: { params: Promise<{ id: string }> }) {
   if (!(await owner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: 'Database is not configured.' }, { status: 503 });
