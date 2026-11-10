@@ -6,7 +6,7 @@ AgencyOS uses opaque, cryptographically random 256-bit tokens. Only a SHA-256 to
 
 `POST /api/email/unsubscribe`
 
-Accepts `application/x-www-form-urlencoded` with a `token` field (compatible with one-click unsubscribe POSTs), or JSON for controlled tests. A valid, unexpired token inserts an `unsubscribe` suppression idempotently, marks matching prospects as suppressed, and consumes the token. Repeated requests remain safe; expired or unknown tokens return 410.
+Accepts an RFC 8058 `POST` to the recipient-specific URL with the opaque token in its query string and an `application/x-www-form-urlencoded` body containing `List-Unsubscribe=One-Click`. A valid, unexpired token inserts an `unsubscribe` suppression idempotently, marks matching prospects as suppressed, and consumes the token. Repeated requests remain safe; expired or unknown tokens return 410.
 
 ## Issuance contract
 
