@@ -193,27 +193,37 @@ export async function POST(_req: Request, context: { params: Promise<{ id: strin
       } as Record<string,string>)[f.key] || 'Review this item and confirm whether it affects this page.' ,
     }));
     const elapsed = Date.now() - started;
-    const saved = await db`
-      INSERT INTO public.seo_audits
-        (prospect_id,website_url,overall_score,findings,recommendations,provider,verified_at)
-      VALUES
-        (${prospect.id},${page.url},${score},${JSON.stringify({
-          source: 'agencyos_public_html_audit_v1',
-          http_status: page.status,
-          content_type: page.contentType,
-          response_time_ms: elapsed,
-          title, meta_description: description, h1: h1s,
-          viewport, canonical, https, image_count: images.length,
-          images_missing_alt: missingAlt, internal_link_count: internalLinks,
-          language: lang, robots,
-          limitations: ['Single public HTML response only','No JavaScript rendering','No Lighthouse/Core Web Vitals','No backlink, keyword, schema, accessibility or ranking analysis'],
-        })}::jsonb,
-        ${JSON.stringify(recommendations)}::jsonb,
-        'AgencyOS HTML Inspector', NOW())
-      RETURNING id,overall_score,website_url,verified_at
-    `;
     const opportunity = scoreProspectOpportunity({ website_status: 'active', audit_score: score, audit_findings: findings });
-    await db`UPDATE public.prospects SET opportunity_score = ${opportunity.score} WHERE id = ${prospect.id}`;
+    const saved = await db`
+      WITH inserted_audit AS (
+        INSERT INTO public.seo_audits
+          (prospect_id,website_url,overall_score,findings,recommendations,provider,verified_at)
+        VALUES
+          (${prospect.id},${page.url},${score},${JSON.stringify({
+            source: 'agencyos_public_html_audit_v1',
+            http_status: page.status,
+            content_type: page.contentType,
+            response_time_ms: elapsed,
+            title, meta_description: description, h1: h1s,
+            viewport, canonical, https, image_count: images.length,
+            images_missing_alt: missingAlt, internal_link_count: internalLinks,
+            language: lang, robots,
+            limitations: ['Single public HTML response only','No JavaScript rendering','No Lighthouse/Core Web Vitals','No backlink, keyword, schema, accessibility or ranking analysis'],
+          })}::jsonb,
+          ${JSON.stringify(recommendations)}::jsonb,
+          'AgencyOS HTML Inspector', NOW())
+        RETURNING id,prospect_id,overall_score,website_url,verified_at
+      ),
+      updated_prospect AS (
+        UPDATE public.prospects
+        SET opportunity_score = ${opportunity.score}, updated_at = NOW()
+        WHERE id = ${prospect.id}
+        RETURNING id
+      )
+      SELECT inserted_audit.id,inserted_audit.overall_score,inserted_audit.website_url,inserted_audit.verified_at
+      FROM inserted_audit
+      INNER JOIN updated_prospect ON updated_prospect.id = inserted_audit.prospect_id
+    `;
     return NextResponse.json({
       audit: { ...saved[0], findings, recommendations, response_time_ms: elapsed },
       notice: 'This is a first-pass public HTML inspection, not a full Lighthouse or search-ranking audit.',
