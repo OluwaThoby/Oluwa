@@ -109,6 +109,28 @@ export async function POST(
     }
 
     try {
+      // Pull completed work from sibling specialists in the same delegation.
+      // Running tasks one at a time lets later specialists build on earlier
+      // deliverables without trusting client-supplied output or task IDs.
+      const parentTaskId = typeof task.input?.parent_task_id === 'string'
+        ? task.input.parent_task_id : '';
+      let collaborationContext: Array<{
+        task_id: string; agent_key: string; title: string; deliverable: string;
+      }> = [];
+      if (/^[0-9a-f-]{36}$/i.test(parentTaskId)) {
+        const peerRows = await db`
+          SELECT id AS task_id, agent_key, title,
+                 LEFT(COALESCE(output->>'deliverable', output::text), 3500) AS deliverable
+          FROM public.agent_tasks
+          WHERE input->>'parent_task_id' = ${parentTaskId}
+            AND id <> ${id}
+            AND status = 'succeeded'
+          ORDER BY finished_at ASC
+          LIMIT 5
+        `;
+        collaborationContext = peerRows as typeof collaborationContext;
+      }
+
       // Give each specialist a small, read-only slice of relevant AgencyOS
       // business records. Exclude contact details and cap every dataset.
       let businessContext: Record<string, unknown> = {};
@@ -172,6 +194,7 @@ Safety boundary: this execution is draft-only. Do not send messages, contact pro
           `Instructions: ${task.instructions || 'Use the supplied task data to produce the most useful safe deliverable.'}`,
           `Structured input: ${JSON.stringify(task.input ?? {})}`,
           `Read-only AgencyOS business context (may be empty): ${JSON.stringify(businessContext)}`,
+          `Completed work from other specialists in this delegation (may be empty): ${JSON.stringify(collaborationContext)}`,
         ].join('\n\n'),
         maxOutputTokens: 1800,
       });
@@ -182,6 +205,11 @@ Safety boundary: this execution is draft-only. Do not send messages, contact pro
         mode: 'draft_only',
         generatedAt: new Date().toISOString(),
         usage: result.usage ?? null,
+        collaboration: {
+          parentTaskId: /^[0-9a-f-]{36}$/i.test(parentTaskId) ? parentTaskId : null,
+          completedPeerTaskIds: collaborationContext.map(item => item.task_id),
+          contextLoadedAt: new Date().toISOString(),
+        },
       };
       // Persist the deliverable and success event atomically. The UI must
       // never show success without its corresponding audit event.
