@@ -17,8 +17,8 @@ export async function GET() {
     let suppressionLookupAvailable=true;
     let suppressedEmails=new Set();
     try {
-      const suppressions=await db`SELECT email FROM public.email_suppressions`;
-      suppressedEmails=new Set(suppressions.map(row=>String(row.email).trim().toLowerCase()));
+      const suppressions=await db`SELECT email_normalized FROM public.email_suppressions`;
+      suppressedEmails=new Set(suppressions.map(row=>String(row.email_normalized).trim().toLowerCase()));
     } catch {
       // The suppression migration is intentionally not applied without owner approval.
       suppressionLookupAvailable=false;
