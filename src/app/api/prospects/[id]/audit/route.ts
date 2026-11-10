@@ -3,6 +3,8 @@ import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
 import { scoreProspectOpportunity } from '@/lib/intelligence/prospect-opportunity-score.mjs';
 import { lookup } from 'node:dns/promises';
+import http from 'node:http';
+import https from 'node:https';
 import { isIP } from 'node:net';
 import { isPublicAddress } from '@/lib/security/public-address.mjs';
 
@@ -28,63 +30,96 @@ async function validatePublicUrl(raw: string) {
       host.endsWith('.local') || host.endsWith('.internal')) {
     throw new Error('Private or local network addresses cannot be audited.');
   }
+  let addresses: Array<{ address: string; family: number }>;
   if (isIP(host)) {
     if (!isPublicAddress(host)) throw new Error('Only globally routable public IP addresses can be audited.');
+    addresses = [{ address: host, family: isIP(host) }];
   } else {
-    const records = await lookup(host, { all: true, verbatim: true });
-    if (!records.length || records.some(r => !isPublicAddress(r.address))) {
+    addresses = await lookup(host, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some(r => !isPublicAddress(r.address))) {
       throw new Error('The website does not resolve exclusively to public IP addresses.');
     }
   }
   url.hash = '';
-  return url;
+  return { url, addresses };
+}
+
+async function requestPinnedPage(url: URL, address: { address: string; family: number }) {
+  const transport = url.protocol === 'https:' ? https : http;
+  return new Promise<{ status: number; location: string | null; contentType: string; html: string }>((resolve, reject) => {
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const request = transport.request({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'GET',
+      headers: {
+        host: url.host,
+        'user-agent': 'AgencyOS-SiteAudit/1.0 (+public page technical audit)',
+        accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
+        connection: 'close',
+      },
+      servername: isIP(url.hostname) ? undefined : url.hostname,
+      lookup: (_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+        callback(null, address.address, address.family);
+      },
+    } as any, (response) => {
+      const status = response.statusCode || 0;
+      const location = response.headers.location ? String(response.headers.location) : null;
+      const contentType = String(response.headers['content-type'] || '');
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        response.resume();
+        settled = true;
+        resolve({ status, location, contentType, html: '' });
+        return;
+      }
+      if (!contentType.toLowerCase().includes('text/html') && !contentType.toLowerCase().includes('application/xhtml+xml')) {
+        response.resume();
+        fail(new Error('The website did not return an HTML page that can be audited.'));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      response.on('data', (chunk: Buffer | string) => {
+        const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        size += part.length;
+        if (size > 1024 * 1024) {
+          request.destroy(new Error('The website HTML response exceeds the 1 MB audit limit.'));
+          return;
+        }
+        chunks.push(part);
+      });
+      response.on('end', () => {
+        if (settled) return;
+        settled = true;
+        resolve({ status, location, contentType, html: Buffer.concat(chunks).toString('utf8') });
+      });
+      response.on('error', fail);
+    });
+    request.setTimeout(8000, () => request.destroy(new Error('The website request timed out.')));
+    request.on('error', fail);
+    request.end();
+  });
 }
 
 async function fetchPublicPage(start: string) {
   let current = start;
   for (let hop = 0; hop < 4; hop++) {
-    const url = await validatePublicUrl(current);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'GET',
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: { 'user-agent': 'AgencyOS-SiteAudit/1.0 (+public-page technical audit)', accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1' },
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-    if ([301,302,303,307,308].includes(response.status)) {
-      const location = response.headers.get('location');
-      if (!location) throw new Error('Website returned an invalid redirect.');
-      current = new URL(location, url).toString();
+    const validated = await validatePublicUrl(current);
+    const url = validated.url;
+    const response = await requestPinnedPage(url, validated.addresses[0]);
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      if (!response.location) throw new Error('Website returned an invalid redirect.');
+      current = new URL(response.location, url).toString();
       continue;
     }
-    const type = response.headers.get('content-type') || '';
-    if (!type.toLowerCase().includes('text/html') && !type.toLowerCase().includes('application/xhtml+xml')) {
-      throw new Error('The website did not return an HTML page that can be audited.');
-    }
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('The website returned an empty response.');
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    try {
-      while (size < 1024 * 1024) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const part = value.slice(0, 1024 * 1024 - size);
-        chunks.push(part);
-        size += part.length;
-        if (size >= 1024 * 1024) break;
-      }
-    } finally {
-      await reader.cancel().catch(() => {});
-    }
-    const html = new TextDecoder().decode(Buffer.concat(chunks));
-    return { url: url.toString(), status: response.status, html, contentType: type };
+    return { url: url.toString(), status: response.status, html: response.html, contentType: response.contentType };
   }
   throw new Error('The website redirected too many times.');
 }
