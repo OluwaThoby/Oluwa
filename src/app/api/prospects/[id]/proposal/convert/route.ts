@@ -41,12 +41,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         )
         RETURNING id,prospect_id
       ),
+      updated_client AS (
+        UPDATE public.clients c
+        SET status='active',updated_at=now()
+        FROM source s
+        WHERE c.prospect_id=s.prospect_id
+          AND NOT EXISTS (SELECT 1 FROM inserted_client)
+        RETURNING c.id,c.prospect_id
+      ),
       selected_client AS (
         SELECT id,prospect_id FROM inserted_client
         UNION ALL
-        SELECT c.id,c.prospect_id FROM public.clients c
-        JOIN source s ON s.prospect_id=c.prospect_id
-        WHERE NOT EXISTS (SELECT 1 FROM inserted_client)
+        SELECT id,prospect_id FROM updated_client
         LIMIT 1
       ),
       inserted_project AS (
