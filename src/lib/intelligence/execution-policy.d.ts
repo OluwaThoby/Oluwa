@@ -29,3 +29,21 @@ export function evaluateExecutionGrant(input: {
   now?: Date;
   expected?: ExecutionGrantExpectation;
 }): { allowed: boolean; reason: string };
+
+export type PersistedExecutionGrantRow = {
+  id?: string;
+  status?: string;
+  permissions?: unknown;
+  resource_scope?: string;
+  starts_at?: string | Date;
+  expires_at?: string | Date;
+  revoked_at?: string | Date | null;
+  max_uses?: number | null;
+  uses_count?: number;
+  agent_key?: string;
+  client_id?: string | null;
+  project_id?: string | null;
+  environment?: 'workspace' | 'preview' | 'production' | string;
+  resource_ref?: string;
+};
+export function normalizeExecutionGrant(row: PersistedExecutionGrantRow | null | undefined): ExecutionGrantState | null;
