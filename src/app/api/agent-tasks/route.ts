@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
+import { classifyRequestedActions } from '@/lib/intelligence/execution-policy.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,8 +83,10 @@ export async function POST(request: Request) {
         ? body.input
         : {};
     const submittedTask = [taskType, title, instructions, JSON.stringify(input)].join('\n');
+    const actionPolicy = classifyRequestedActions(submittedTask);
     const approvalRequired =
       body.requires_approval === true ||
+      actionPolicy.requiresExplicitApproval ||
       APPROVAL_REQUIRED_ACTIONS.test(submittedTask);
 
     const status = approvalRequired ? 'waiting_approval' : 'queued';
@@ -109,6 +112,10 @@ export async function POST(request: Request) {
           source: 'owner_console',
           status,
           approvalRequired,
+          classifiedPermissions: actionPolicy.permissions,
+          highestRisk: actionPolicy.highestRisk,
+          financialApprovalRequired: actionPolicy.financialApprovalRequired,
+          executionGranted: false,
           approvalReason: approvalRequired
             ? 'Sensitive action detected in submitted task content or explicitly requested.'
             : null,
