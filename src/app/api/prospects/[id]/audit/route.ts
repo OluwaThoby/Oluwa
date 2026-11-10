@@ -55,7 +55,7 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
     };
     const request = transport.request({
       protocol: url.protocol,
-      hostname: url.hostname,
+      hostname: url.hostname.replace(/^\\[|\\]$/g, ''),
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname + url.search,
       method: 'GET',
@@ -65,7 +65,7 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
         accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
         connection: 'close',
       },
-      servername: isIP(url.hostname) ? undefined : url.hostname,
+      servername: isIP(url.hostname.replace(/^\\[|\\]$/g, '')) ? undefined : url.hostname.replace(/^\\[|\\]$/g, ''),
       lookup: (_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
         callback(null, pinnedAddress.address, pinnedAddress.family);
       },
