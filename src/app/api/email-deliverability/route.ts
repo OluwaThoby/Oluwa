@@ -23,13 +23,18 @@ export async function GET() {
     const [domains, suppressions, events, messageStates] = await Promise.all([
       db`SELECT id, domain, from_address, status, spf_status, dkim_status, dmarc_status, alignment_status, last_checked_at, verified_at, updated_at FROM public.email_sender_domains ORDER BY updated_at DESC LIMIT 50`,
       db`SELECT count(*)::int AS total FROM public.email_suppressions`,
-      db`SELECT event_type, count(*)::int AS total FROM public.email_delivery_events WHERE occurred_at >= now() - interval '30 days' GROUP BY event_type`,
+      db`SELECT event_type, count(*)::int AS total, count(DISTINCT message_id)::int AS unique_messages FROM public.email_delivery_events WHERE occurred_at >= now() - interval '30 days' GROUP BY event_type`,
       db`SELECT status, count(*)::int AS total FROM public.messages WHERE direction='outbound' AND created_at >= now() - interval '30 days' GROUP BY status`,
     ]);
 
     const eventCounts = Object.fromEntries(events.map((row: { event_type: string; total: number }) => [row.event_type, row.total]));
-    const accepted = Number(eventCounts.accepted ?? 0) + Number(eventCounts.delivered ?? 0);
-    const attempted = accepted + Number(eventCounts.hard_bounce ?? 0) + Number(eventCounts.soft_bounce ?? 0) + Number(eventCounts.rejected ?? 0);
+    const uniqueByType = Object.fromEntries(events.map((row: { event_type: string; unique_messages: number }) => [row.event_type, Number(row.unique_messages ?? 0)]));
+    const providerAccepted = Number(uniqueByType.accepted ?? 0);
+    const providerRejected = Number(uniqueByType.rejected ?? 0);
+    const providerAttempts = providerAccepted + providerRejected;
+    const recipientAccepted = Number(uniqueByType.delivered ?? 0);
+    const hardBounced = Number(uniqueByType.hard_bounce ?? 0);
+    const recipientAttempts = recipientAccepted + hardBounced;
     return NextResponse.json({
       windowDays: 30,
       domains,
@@ -37,8 +42,8 @@ export async function GET() {
       events: eventCounts,
       messageStates,
       metrics: {
-        providerAcceptanceRate: attempted ? Number((accepted / attempted * 100).toFixed(2)) : null,
-        hardBounceRate: attempted ? Number((Number(eventCounts.hard_bounce ?? 0) / attempted * 100).toFixed(2)) : null,
+        providerAcceptanceRate: providerAttempts ? Number((providerAccepted / providerAttempts * 100).toFixed(2)) : null,
+        hardBounceRate: recipientAttempts ? Number((hardBounced / recipientAttempts * 100).toFixed(2)) : null,
         complaintCount: Number(eventCounts.complaint ?? 0),
         inboxPlacementRate: null,
         inboxPlacementNote: 'Not measured. Provider acceptance is not proof of inbox placement.',
