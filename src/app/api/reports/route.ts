@@ -10,7 +10,7 @@ export async function GET(){
   const db=neon(process.env.DATABASE_URL);
   const [prospects,audits,projects,clients,invoices,activity]=await Promise.all([
    db`SELECT status,COUNT(*)::int AS count FROM public.prospects GROUP BY status ORDER BY count DESC`,
-   db`SELECT COUNT(*)::int AS total,ROUND(AVG(overall_score))::int AS average_score,COUNT(*) FILTER(WHERE overall_score<50)::int AS below_50,COUNT(*) FILTER(WHERE overall_score>=80)::int AS 80_plus FROM public.seo_audits`,
+   db`SELECT COUNT(*)::int AS total,ROUND(AVG(overall_score))::int AS average_score,COUNT(*) FILTER(WHERE overall_score<50)::int AS below_50,COUNT(*) FILTER(WHERE overall_score>=80)::int AS "80_plus" FROM public.seo_audits`,
    db`SELECT status,COUNT(*)::int AS count FROM public.projects GROUP BY status ORDER BY count DESC`,
    db`SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE status='active')::int AS active FROM public.clients`,
    db`SELECT currency,COUNT(*)::int AS invoice_count,COALESCE(SUM(total),0)::numeric AS invoiced,COALESCE(SUM(amount_paid),0)::numeric AS collected,COALESCE(SUM(GREATEST(total-amount_paid,0)) FILTER(WHERE status NOT IN ('draft','void')),0)::numeric AS outstanding,COALESCE(SUM(GREATEST(total-amount_paid,0)) FILTER(WHERE status NOT IN ('draft','void') AND due_date<CURRENT_DATE),0)::numeric AS overdue FROM public.agency_invoices GROUP BY currency ORDER BY currency`,
