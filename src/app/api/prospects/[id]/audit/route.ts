@@ -113,16 +113,27 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
   });
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise.then(
+      value => { clearTimeout(timer); resolve(value); },
+      error => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 async function fetchPublicPage(start: string) {
   let current = start;
   const deadline = Date.now() + 11000;
   for (let hop = 0; hop < 4; hop++) {
     const remainingBeforeDns = deadline - Date.now();
     if (remainingBeforeDns < 500) throw new Error('The website exceeded the total audit time limit.');
-    const validated = await Promise.race([
+    const validated = await withTimeout(
       validatePublicUrl(current),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Website DNS validation timed out.')), Math.min(4000, remainingBeforeDns))),
-    ]);
+      Math.min(4000, remainingBeforeDns),
+      'Website DNS validation timed out.',
+    );
     const url = validated.url;
     const remainingBeforeRequest = deadline - Date.now();
     if (remainingBeforeRequest < 500) throw new Error('The website exceeded the total audit time limit.');
