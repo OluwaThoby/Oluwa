@@ -3,12 +3,12 @@
  * Classification never executes an action or grants permission.
  */
 const RULES = [
-  { permission: 'financial_action', risk: 'critical', pattern: /\\b(spend|purchase|buy|subscribe|transfer|withdraw|refund|charge|pay|payment|payout|bank|credit card|financial commitment)\\b/i },
-  { permission: 'data_destructive', risk: 'critical', pattern: /\\b(delete|destroy|purge|wipe|drop table|erase|remove customer data)\\b/i },
-  { permission: 'production_deploy', risk: 'high', pattern: /\\b(deploy|deployment|release to production|push live|publish website|go live)\\b/i },
-  { permission: 'content_publish', risk: 'high', pattern: /\\b(publish|post|schedule post|upload content|send newsletter)\\b/i },
-  { permission: 'external_message', risk: 'high', pattern: /\\b(send email|send emails|email prospect|email customer|contact prospect|send message|send outreach|follow.?up email)\\b/i },
-  { permission: 'production_change', risk: 'high', pattern: /\\b(modify live|change production|update live|edit live website|change dns|change domain|alter client site)\\b/i },
+  { permission: 'financial_action', risk: 'critical', pattern: /\b(spend|purchase|buy|subscribe|transfer|withdraw|refund|charge|pay|payment|payout|bank|credit card|financial commitment)\b/i },
+  { permission: 'data_destructive', risk: 'critical', pattern: /\b(delete|destroy|purge|wipe|drop table|erase|remove customer data)\b/i },
+  { permission: 'production_deploy', risk: 'high', pattern: /\b(deploy|deployment|release to production|push live|publish website|go live)\b/i },
+  { permission: 'content_publish', risk: 'high', pattern: /\b(publish|post|schedule post|upload content|send newsletter)\b/i },
+  { permission: 'external_message', risk: 'high', pattern: /\b(send email|send emails|email prospect|email customer|contact prospect|send message|send outreach|follow.?up email)\b/i },
+  { permission: 'production_change', risk: 'high', pattern: /\b(modify live|change production|update live|edit live website|change dns|change domain|alter client site)\b/i },
 ];
 const FINANCIAL = new Set(['financial_action']);
 const HIGH_IMPACT = new Set(['data_destructive', 'production_deploy', 'content_publish', 'external_message', 'production_change']);
