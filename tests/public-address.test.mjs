@@ -22,7 +22,7 @@ test('blocks reserved, documentation, benchmarking and multicast IPv4 ranges', (
 });
 
 test('blocks non-global, mapped and special-purpose IPv6 ranges', () => {
-  for (const ip of ['::','::1','fc00::1','fd12::1','fe80::1','ff02::1','::ffff:192.168.1.1','2001:db8::1','2002::1']) {
+  for (const ip of ['::','::1','fc00::1','fd12::1','fe80::1','ff02::1','::ffff:192.168.1.1','2001:db8::1','2001::1','2001:1::1','2001:2::1','2001:10::1','2001:20::1','2002::1']) {
     assert.equal(isPublicAddress(ip), false, ip);
   }
 });
