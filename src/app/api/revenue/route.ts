@@ -18,7 +18,7 @@ export async function GET(){
   db`WITH currencies AS (SELECT currency FROM public.agency_invoices UNION SELECT currency FROM public.agency_expenses UNION SELECT currency FROM public.agency_retainers) SELECT x.currency,COALESCE(i.invoiced,0) AS invoiced,COALESCE(i.collected,0) AS collected,COALESCE(i.outstanding,0) AS outstanding,COALESCE(i.overdue,0) AS overdue,COALESCE(r.mrr,0) AS mrr,COALESCE(e.month_costs,0) AS month_costs FROM currencies x LEFT JOIN LATERAL (SELECT SUM(total) FILTER(WHERE status NOT IN ('draft','void')) AS invoiced,SUM(amount_paid) FILTER(WHERE status NOT IN ('draft','void')) AS collected,SUM(total-amount_paid) FILTER(WHERE status NOT IN ('draft','void')) AS outstanding,SUM(total-amount_paid) FILTER(WHERE status NOT IN ('draft','void') AND due_date<CURRENT_DATE AND total>amount_paid) AS overdue FROM public.agency_invoices WHERE currency=x.currency) i ON true LEFT JOIN LATERAL (SELECT SUM(amount * CASE billing_cycle WHEN 'monthly' THEN 1 WHEN 'quarterly' THEN 1.0/3 WHEN 'annual' THEN 1.0/12 END) AS mrr FROM public.agency_retainers WHERE currency=x.currency AND status='active') r ON true LEFT JOIN LATERAL (SELECT SUM(amount) AS month_costs FROM public.agency_expenses WHERE currency=x.currency AND date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)) e ON true ORDER BY x.currency`
  ]);
  return NextResponse.json({clients,projects,invoices,retainers,expenses,summary});
- }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not load revenue workspace.'},{status:500});}
+ }catch{return NextResponse.json({error:'Could not load revenue workspace.'},{status:500});}
 }
 export async function POST(req:Request){
  if(!(await owner()))return NextResponse.json({error:'Unauthorized'},{status:401});
@@ -30,7 +30,7 @@ export async function POST(req:Request){
   const clean: {description:string;quantity:number;unit_price:number}[]=items.map((x:any)=>({description:String(x.description||'').trim().slice(0,180),quantity:Math.max(0,Math.min(100000,Number(x.quantity)||0)),unit_price:money(x.unit_price)}));
   if(clean.some(x=>x.description.length<2||x.quantity<=0||!Number.isFinite(x.unit_price)||x.unit_price<0))return NextResponse.json({error:'Check each line description, quantity and unit price.'},{status:400});
   const subtotal=Math.round(clean.reduce((s,x)=>s+x.quantity*x.unit_price,0)*100)/100;const tax=money(b.tax_amount??0);
-  if(!Number.isFinite(tax)||subtotal+tax<=0)return NextResponse.json({error:'Invoice total must be greater than zero.'},{status:400});
+  if(!Number.isFinite(subtotal)||subtotal>1_000_000_000_000||!Number.isFinite(tax)||tax>1_000_000_000_000||subtotal+tax<=0||subtotal+tax>1_000_000_000_000)return NextResponse.json({error:'Invoice total must be greater than zero.'},{status:400});
   const due=b.due_date?dateOnly(b.due_date):null;if(b.due_date&&!due)return NextResponse.json({error:'Enter a valid invoice due date.'},{status:400});
   const notes=typeof b.notes==='string'?b.notes.trim().slice(0,3000):null;
   const projectId=typeof b.project_id==='string'&&b.project_id.trim()?b.project_id.trim():null;
