@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const db = neon(process.env.DATABASE_URL);
     const rows = await db`
       WITH parent AS (
-        SELECT id FROM public.agent_tasks
+        SELECT id, output FROM public.agent_tasks
         WHERE id = ${parentId} AND status = 'succeeded'
         LIMIT 1
       ), requested AS (
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
           (agent_key, task_type, title, instructions, input, status, priority,
            requires_approval, requested_by)
         SELECT r.agent_key, r.task_type, r.title, r.instructions,
-          r.input || jsonb_build_object('parent_task_id', p.id),
+          r.input || jsonb_build_object('parent_task_id', p.id, 'parent_deliverable', p.output),
           r.status, r.priority, r.requires_approval, 'orchestrator'
         FROM requested r CROSS JOIN parent p
         RETURNING id, agent_key, title, status, priority, requires_approval
