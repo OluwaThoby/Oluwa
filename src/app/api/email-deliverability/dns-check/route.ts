@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { resolveTxt } from 'node:dns/promises';
+import { auth } from '@/lib/auth';
 import { checkEmailDnsAuthentication } from '@/lib/email/dns-auth-check.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const { data } = await auth.getSession();
+  const email = data?.user?.email;
+  if (!email || !process.env.OWNER_EMAIL || email.toLowerCase() !== process.env.OWNER_EMAIL.toLowerCase()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const result = await checkEmailDnsAuthentication({
