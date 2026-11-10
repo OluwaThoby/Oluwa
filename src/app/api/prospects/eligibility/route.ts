@@ -13,13 +13,27 @@ export async function GET() {
   if (!process.env.DATABASE_URL) return NextResponse.json({error:'Database unavailable'},{status:503});
   try {
     const db=neon(process.env.DATABASE_URL);
-    const rows=await db`
-      SELECT p.id,p.business_name,p.business_email,p.source,p.source_url,p.consent_basis,p.status,
-        EXISTS(SELECT 1 FROM public.email_suppressions s WHERE lower(s.email)=lower(trim(p.business_email))) AS is_suppressed
-      FROM public.prospects p ORDER BY p.created_at DESC LIMIT 500
-    `;
-    const prospects=rows.map(row=>({...row,contactReadiness:evaluateProspectContactReadiness(row)}));
+    const rows=await db`SELECT id,business_name,business_email,source,source_url,consent_basis,status,created_at FROM public.prospects ORDER BY created_at DESC LIMIT 500`;
+    let suppressionLookupAvailable=true;
+    let suppressedEmails=new Set();
+    try {
+      const suppressions=await db`SELECT email FROM public.email_suppressions`;
+      suppressedEmails=new Set(suppressions.map(row=>String(row.email).trim().toLowerCase()));
+    } catch {
+      // The suppression migration is intentionally not applied without owner approval.
+      suppressionLookupAvailable=false;
+    }
+    const prospects=rows.map(row=>{
+      const result=evaluateProspectContactReadiness({...row,is_suppressed:suppressedEmails.has(String(row.business_email||'').trim().toLowerCase())});
+      if(!suppressionLookupAvailable){
+        result.readyForHumanApproval=false;
+        result.draftAllowed=false;
+        result.nextStep='suppression_registry_migration_requires_owner_approval';
+        result.reasons.push('suppression_registry_unavailable');
+      }
+      return {...row,contactReadiness:result};
+    });
     const summary={total:prospects.length,readyForHumanApproval:prospects.filter(p=>p.contactReadiness.readyForHumanApproval).length,needsReview:prospects.filter(p=>!p.contactReadiness.readyForHumanApproval).length,suppressed:prospects.filter(p=>p.contactReadiness.reasons.includes('contact_is_suppressed')).length,draftsBlocked:prospects.filter(p=>!p.contactReadiness.draftAllowed).length};
-    return NextResponse.json({prospects,summary,sendingEnabled:false});
+    return NextResponse.json({prospects,summary,suppressionLookupAvailable,sendingEnabled:false});
   } catch { return NextResponse.json({error:'Could not evaluate prospect contact evidence.'},{status:500}); }
 }
