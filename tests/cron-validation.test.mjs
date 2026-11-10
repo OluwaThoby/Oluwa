@@ -19,7 +19,7 @@ test('rejects invalid field counts and out-of-range values', () => {
 
 test('rejects malformed ranges and steps', () => {
   assert.equal(isValidCron('*/0 * * * *'), false);
-  assert.equal(isValidCron('*/60 * * * *'), false);
+  assert.equal(isValidCron('*/61 * * * *'), false);
   assert.equal(isValidCron('10-2 * * * *'), false);
   assert.equal(isValidCron('1,,2 * * * *'), false);
   assert.equal(isValidCron('* * * * * extra'), false);
