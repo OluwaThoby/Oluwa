@@ -10,17 +10,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unsubscribe service temporarily unavailable.' }, { status: 503 });
   }
 
-  let token = '';
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token') || '';
   const contentType = request.headers.get('content-type') || '';
   try {
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const form = await request.formData();
-      token = String(form.get('token') || '');
-    } else if (contentType.includes('application/json')) {
-      const body = await request.json();
-      token = typeof body.token === 'string' ? body.token : '';
-    } else {
+    if (!contentType.includes('application/x-www-form-urlencoded')) {
       return NextResponse.json({ error: 'Unsupported request format.' }, { status: 415 });
+    }
+    const form = await request.formData();
+    if (form.get('List-Unsubscribe') !== 'One-Click') {
+      return NextResponse.json({ error: 'Invalid one-click unsubscribe request.' }, { status: 400 });
     }
   } catch {
     return NextResponse.json({ error: 'Invalid unsubscribe request.' }, { status: 400 });
