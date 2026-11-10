@@ -90,3 +90,40 @@ test('financial actions remain blocked even when named in a malformed legacy gra
   assert.equal(result.allowed, false);
   assert.equal(result.reason, 'financial_actions_require_separate_transaction_approval');
 });
+
+test('persisted database grant rows normalize into the canonical policy shape', async () => {
+  const { normalizeExecutionGrant } = await import('../src/lib/intelligence/execution-policy.mjs');
+  const row = {
+    id: 'grant-1',
+    status: 'active',
+    permissions: ['production_deploy'],
+    resource_scope: 'Approved project release',
+    starts_at: '2026-11-09T00:00:00.000Z',
+    expires_at: '2027-01-01T00:00:00.000Z',
+    revoked_at: null,
+    max_uses: 3,
+    uses_count: 1,
+    agent_key: 'development',
+    client_id: 'client-1',
+    project_id: 'project-1',
+    environment: 'production',
+    resource_ref: 'project-1',
+  };
+  const normalized = normalizeExecutionGrant(row);
+  assert.equal(normalized.agentKey, 'development');
+  assert.equal(normalized.uses, 1);
+  assert.equal(normalized.scope, 'Approved project release');
+  assert.equal(evaluateExecutionGrant({
+    permission: 'production_deploy',
+    grant: normalized,
+    now,
+    expected: { agentKey: 'development', clientId: 'client-1', projectId: 'project-1', environment: 'production', resourceRef: 'project-1' },
+  }).allowed, true);
+});
+
+test('malformed persisted grant rows fail closed', async () => {
+  const { normalizeExecutionGrant } = await import('../src/lib/intelligence/execution-policy.mjs');
+  assert.equal(normalizeExecutionGrant(null), null);
+  assert.equal(normalizeExecutionGrant({ permissions: ['production_deploy'] }), null);
+  assert.equal(normalizeExecutionGrant({ status: 'active', permissions: ['production_deploy', 7], resource_scope: 'scope', agent_key: 'development', environment: 'production' }), null);
+});
