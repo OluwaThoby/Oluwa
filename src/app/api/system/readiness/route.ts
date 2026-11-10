@@ -20,6 +20,19 @@ export async function GET() {
     return typeof value === 'string' && value.trim().length > 0;
   });
 
+  const runtime = process.env.AGENCY_MODEL_RUNTIME || 'vercel-gateway';
+  const gatewayReady = runtime === 'vercel-gateway' &&
+    configured(['AI_GATEWAY_MODEL']) &&
+    configured(['AI_GATEWAY_API_KEY', 'VERCEL_OIDC_TOKEN']);
+  const selfHostedReady = runtime === 'self-hosted' &&
+    configured(['AGENCY_MODEL_ENDPOINT']) &&
+    configured(['AGENCY_MODEL_NAME']) &&
+    configured(['AGENCY_MODEL_TOKEN']);
+  const modelReady = gatewayReady || selfHostedReady;
+  const selectedModel = runtime === 'self-hosted'
+    ? process.env.AGENCY_MODEL_NAME || null
+    : process.env.AI_GATEWAY_MODEL || null;
+
   const integrations = [
     {
       key: 'database',
@@ -33,13 +46,18 @@ export async function GET() {
       key: 'model',
       name: 'AI inference runtime',
       category: 'AgencyOS Intelligence',
-      configured: configured(['AI_GATEWAY_MODEL']) &&
-        configured(['AI_GATEWAY_API_KEY', 'VERCEL_OIDC_TOKEN']),
+      configured: modelReady,
       required: true,
-      detail: process.env.AI_GATEWAY_MODEL
-        ? 'A model ID and a recognised gateway credential are present. This checks configuration only, not live model access.'
-        : 'Choose and configure an approved provider/model ID. No model is selected automatically.',
-      model: process.env.AI_GATEWAY_MODEL || null,
+      detail: runtime === 'self-hosted'
+        ? modelReady
+          ? 'A private inference endpoint, model name and access token are present. This checks configuration only, not model health or ownership of the served weights.'
+          : 'Self-hosted mode requires a private HTTPS endpoint, model name and access token. No hosted-model fallback is used.'
+        : runtime === 'vercel-gateway'
+          ? modelReady
+            ? 'A model ID and recognised gateway credential are present. This checks configuration only, not live model access.'
+            : 'Gateway mode requires an explicitly selected provider/model ID and recognised gateway credential. No model is selected automatically.'
+          : 'Unsupported runtime selected. No fallback to another model is permitted.',
+      model: selectedModel,
     },
     {
       key: 'places',
@@ -95,6 +113,6 @@ export async function GET() {
       spending_requires_approval: true,
       production_changes_require_approval: true,
     },
-    note: 'These are server-side configuration-presence checks, not provider connectivity tests. Secret values are never returned.',
+    note: 'These are server-side configuration-presence checks, not provider connectivity or model-quality tests. Secret values are never returned.',
   });
 }
