@@ -44,11 +44,11 @@ async function validatePublicUrl(raw: string) {
   return { url, addresses };
 }
 
-async function requestPinnedPage(url: URL, pinnedAddress: { address: string; family: number }) {
+async function requestPinnedPage(url: URL, pinnedAddress: { address: string; family: number }, timeoutMs: number) {
   const transport = url.protocol === 'https:' ? https : http;
   return new Promise<{ status: number; location: string | null; contentType: string; html: string }>((resolve, reject) => {
     let settled = false;
-    const absoluteTimer = setTimeout(() => request.destroy(new Error('The website request exceeded the 10-second audit time limit.')), 10000);
+    const absoluteTimer = setTimeout(() => request.destroy(new Error('The website request exceeded its audit time budget.')), Math.max(1, timeoutMs));
     const fail = (error: Error) => {
       if (settled) return;
       settled = true;
@@ -104,9 +104,10 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
         clearTimeout(absoluteTimer);
         resolve({ status, location, contentType, html: Buffer.concat(chunks).toString('utf8') });
       });
+      response.on('aborted', () => fail(new Error('The website closed the response before the page was fully received.')));
       response.on('error', fail);
     });
-    request.setTimeout(8000, () => request.destroy(new Error('The website request timed out.')));
+    request.setTimeout(Math.min(8000, Math.max(1, timeoutMs)), () => request.destroy(new Error('The website request timed out.')));
     request.on('error', fail);
     request.end();
   });
@@ -114,10 +115,18 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
 
 async function fetchPublicPage(start: string) {
   let current = start;
+  const deadline = Date.now() + 11000;
   for (let hop = 0; hop < 4; hop++) {
-    const validated = await validatePublicUrl(current);
+    const remainingBeforeDns = deadline - Date.now();
+    if (remainingBeforeDns < 500) throw new Error('The website exceeded the total audit time limit.');
+    const validated = await Promise.race([
+      validatePublicUrl(current),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Website DNS validation timed out.')), Math.min(4000, remainingBeforeDns))),
+    ]);
     const url = validated.url;
-    const response = await requestPinnedPage(url, validated.addresses[0]);
+    const remainingBeforeRequest = deadline - Date.now();
+    if (remainingBeforeRequest < 500) throw new Error('The website exceeded the total audit time limit.');
+    const response = await requestPinnedPage(url, validated.addresses[0], remainingBeforeRequest);
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       if (!response.location) throw new Error('Website returned an invalid redirect.');
       current = new URL(response.location, url).toString();
