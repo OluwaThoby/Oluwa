@@ -82,7 +82,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         RETURNING entity_id
       )
       SELECT inserted.* FROM inserted
-      JOIN logged ON logged.entity_id = inserted.project_id
+      WHERE EXISTS (SELECT 1 FROM logged WHERE logged.entity_id = inserted.project_id)
     `;
 
     if (!rows.length) {
