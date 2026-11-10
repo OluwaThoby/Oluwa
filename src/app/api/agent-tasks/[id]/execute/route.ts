@@ -85,20 +85,28 @@ export async function POST(
       return NextResponse.json({ error: 'No execution policy exists for this agent.' }, { status: 400 });
     }
 
+    // Claim the task and append its event in one PostgreSQL statement. If
+    // event persistence fails, the claim rolls back instead of leaving a
+    // running task with no execution-start record.
     const claimed = await db`
-      UPDATE public.agent_tasks
-      SET status = 'running', started_at = NOW(), updated_at = NOW()
-      WHERE id = ${id} AND status = 'queued' AND requires_approval = false
-      RETURNING id
+      WITH claimed AS (
+        UPDATE public.agent_tasks
+        SET status = 'running', started_at = NOW(), updated_at = NOW()
+        WHERE id = ${id} AND status = 'queued' AND requires_approval = false
+        RETURNING id
+      ), logged AS (
+        INSERT INTO public.agent_task_events (task_id, event_type, details)
+        SELECT id, 'execution_started',
+          ${JSON.stringify({ agent: task.agent_key, mode: 'draft_only' })}::jsonb
+        FROM claimed
+        RETURNING task_id
+      )
+      SELECT claimed.id
+      FROM claimed JOIN logged ON logged.task_id = claimed.id
     `;
     if (!(claimed as unknown as Array<{ id: string }>)[0]) {
       return NextResponse.json({ error: 'Task was claimed by another worker or is no longer queued.' }, { status: 409 });
     }
-
-    await db`
-      INSERT INTO public.agent_task_events (task_id, event_type, details)
-      VALUES (${id}, 'execution_started', ${JSON.stringify({ agent: task.agent_key, mode: 'draft_only' })}::jsonb)
-    `;
 
     try {
       const result = await generateAgencyText({
@@ -120,28 +128,37 @@ Safety boundary: this execution is draft-only. Do not send messages, contact pro
         generatedAt: new Date().toISOString(),
         usage: result.usage ?? null,
       };
+      // Persist the deliverable and success event atomically. The UI must
+      // never show success without its corresponding audit event.
       await db`
-        UPDATE public.agent_tasks
-        SET status = 'succeeded', output = ${JSON.stringify(output)}::jsonb,
-            finished_at = NOW(), updated_at = NOW(), error_message = NULL
-        WHERE id = ${id}
-      `;
-      await db`
+        WITH completed AS (
+          UPDATE public.agent_tasks
+          SET status = 'succeeded', output = ${JSON.stringify(output)}::jsonb,
+              finished_at = NOW(), updated_at = NOW(), error_message = NULL
+          WHERE id = ${id} AND status = 'running'
+          RETURNING id
+        )
         INSERT INTO public.agent_task_events (task_id, event_type, details)
-        VALUES (${id}, 'execution_succeeded', ${JSON.stringify({ model: result.model, mode: 'draft_only' })}::jsonb)
+        SELECT id, 'execution_succeeded',
+          ${JSON.stringify({ model: result.model, mode: 'draft_only' })}::jsonb
+        FROM completed
       `;
       return NextResponse.json({ taskId: id, status: 'succeeded', ...output });
     } catch (error) {
       const reason = error instanceof Error ? error.message.slice(0, 500) : 'Unknown model error';
+      // Record the failure and its audit event as a single atomic change.
       await db`
-        UPDATE public.agent_tasks
-        SET status = 'failed', error_message = ${reason},
-            finished_at = NOW(), updated_at = NOW()
-        WHERE id = ${id}
-      `;
-      await db`
+        WITH failed AS (
+          UPDATE public.agent_tasks
+          SET status = 'failed', error_message = ${reason},
+              finished_at = NOW(), updated_at = NOW()
+          WHERE id = ${id} AND status = 'running'
+          RETURNING id
+        )
         INSERT INTO public.agent_task_events (task_id, event_type, details)
-        VALUES (${id}, 'execution_failed', ${JSON.stringify({ reason: reason.slice(0, 250) })}::jsonb)
+        SELECT id, 'execution_failed',
+          ${JSON.stringify({ reason: reason.slice(0, 250) })}::jsonb
+        FROM failed
       `;
       return NextResponse.json({
         error: 'The agent could not complete the task. The failure was recorded.',
