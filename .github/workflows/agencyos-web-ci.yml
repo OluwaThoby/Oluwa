@@ -1,0 +1,38 @@
+name: AgencyOS web quality gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agencyos-web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/agencyos
+      OWNER_EMAIL: owner@example.invalid
+      NEON_AUTH_BASE_URL: https://auth.example.invalid
+      NEON_AUTH_COOKIE_SECRET: ci-only-placeholder-secret-not-for-production
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run automated tests
+        run: npm test
+      - name: Build production application
+        run: npm run build
