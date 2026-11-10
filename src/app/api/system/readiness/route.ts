@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +21,10 @@ export async function GET() {
     return typeof value === 'string' && value.trim().length > 0;
   });
 
-  const runtime = process.env.AGENCY_MODEL_RUNTIME || 'vercel-gateway';
-  const gatewayReady = runtime === 'vercel-gateway' &&
-    configured(['AI_GATEWAY_MODEL']) &&
-    configured(['AI_GATEWAY_API_KEY', 'VERCEL_OIDC_TOKEN']);
-  const selfHostedReady = runtime === 'self-hosted' &&
-    configured(['AGENCY_MODEL_ENDPOINT']) &&
-    configured(['AGENCY_MODEL_NAME']) &&
-    configured(['AGENCY_MODEL_TOKEN']);
-  const modelReady = gatewayReady || selfHostedReady;
-  const selectedModel = runtime === 'self-hosted'
-    ? process.env.AGENCY_MODEL_NAME || null
-    : process.env.AI_GATEWAY_MODEL || null;
+  const runtimeReadiness = getAgencyModelRuntimeReadiness();
+  const runtime = runtimeReadiness.runtime;
+  const modelReady = runtimeReadiness.configured;
+  const selectedModel = runtimeReadiness.model;
 
   const integrations = [
     {
