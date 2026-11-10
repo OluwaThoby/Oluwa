@@ -107,17 +107,17 @@ test('persisted database grant rows normalize into the canonical policy shape', 
     client_id: 'client-1',
     project_id: 'project-1',
     environment: 'production',
-    resource_ref: 'project-1',
   };
   const normalized = normalizeExecutionGrant(row);
   assert.equal(normalized.agentKey, 'development');
   assert.equal(normalized.uses, 1);
   assert.equal(normalized.scope, 'Approved project release');
+  assert.equal(normalized.resourceRef, undefined, 'the current grant schema does not persist a resource_ref column');
   assert.equal(evaluateExecutionGrant({
     permission: 'production_deploy',
     grant: normalized,
     now,
-    expected: { agentKey: 'development', clientId: 'client-1', projectId: 'project-1', environment: 'production', resourceRef: 'project-1' },
+    expected: { agentKey: 'development', clientId: 'client-1', projectId: 'project-1', environment: 'production' },
   }).allowed, true);
 });
 
