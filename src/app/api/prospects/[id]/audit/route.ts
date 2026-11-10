@@ -48,14 +48,16 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
   const transport = url.protocol === 'https:' ? https : http;
   return new Promise<{ status: number; location: string | null; contentType: string; html: string }>((resolve, reject) => {
     let settled = false;
+    const absoluteTimer = setTimeout(() => request.destroy(new Error('The website request exceeded the 10-second audit time limit.')), 10000);
     const fail = (error: Error) => {
       if (settled) return;
       settled = true;
+      clearTimeout(absoluteTimer);
       reject(error);
     };
     const request = transport.request({
       protocol: url.protocol,
-      hostname: url.hostname.replace(/^\\[|\\]$/g, ''),
+      hostname: url.hostname.replace(/^\[|\]$/g, ''),
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname + url.search,
       method: 'GET',
@@ -65,7 +67,7 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
         accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
         connection: 'close',
       },
-      servername: isIP(url.hostname.replace(/^\\[|\\]$/g, '')) ? undefined : url.hostname.replace(/^\\[|\\]$/g, ''),
+      servername: isIP(url.hostname.replace(/^\[|\]$/g, '')) ? undefined : url.hostname.replace(/^\[|\]$/g, ''),
       lookup: (_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
         callback(null, pinnedAddress.address, pinnedAddress.family);
       },
@@ -76,6 +78,7 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
       if ([301, 302, 303, 307, 308].includes(status)) {
         response.resume();
         settled = true;
+        clearTimeout(absoluteTimer);
         resolve({ status, location, contentType, html: '' });
         return;
       }
@@ -98,6 +101,7 @@ async function requestPinnedPage(url: URL, pinnedAddress: { address: string; fam
       response.on('end', () => {
         if (settled) return;
         settled = true;
+        clearTimeout(absoluteTimer);
         resolve({ status, location, contentType, html: Buffer.concat(chunks).toString('utf8') });
       });
       response.on('error', fail);
@@ -118,6 +122,9 @@ async function fetchPublicPage(start: string) {
       if (!response.location) throw new Error('Website returned an invalid redirect.');
       current = new URL(response.location, url).toString();
       continue;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`The website returned HTTP ${response.status}; only successful 2xx pages can be scored.`);
     }
     return { url: url.toString(), status: response.status, html: response.html, contentType: response.contentType };
   }
