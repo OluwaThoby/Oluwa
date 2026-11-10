@@ -47,7 +47,9 @@ export async function POST(request: Request) {
     const agentKey = typeof body.agent_key === 'string' ? body.agent_key.trim() : '';
     const scope = typeof body.resource_scope === 'string' ? body.resource_scope.trim() : '';
     const environment = body.environment;
-    const permissions = Array.isArray(body.permissions) ? [...new Set(body.permissions)] : [];
+    const rawPermissions: unknown[] = Array.isArray(body.permissions) ? body.permissions : [];
+    if (rawPermissions.some((permission) => typeof permission !== 'string')) return NextResponse.json({ error: 'Execution permissions must be text values.' }, { status: 400 });
+    const permissions: string[] = [...new Set(rawPermissions as string[])];
     const expiresAt = typeof body.expires_at === 'string' ? new Date(body.expires_at) : null;
     const maxUses = body.max_uses == null ? null : Number(body.max_uses);
     const clientId = body.client_id || null;
