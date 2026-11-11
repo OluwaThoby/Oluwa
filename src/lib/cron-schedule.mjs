@@ -58,8 +58,8 @@ export function nextCronOccurrence(expression, timezone, after = new Date()) {
     day: expandField(fieldsRaw[2], 1, 31),
     month: expandField(fieldsRaw[3], 1, 12),
     weekday: expandField(fieldsRaw[4], 0, 7, true),
-    dayWildcard: fieldsRaw[2].includes('*'),
-    weekdayWildcard: fieldsRaw[4].includes('*'),
+    dayWildcard: fieldsRaw[2] === '*',
+    weekdayWildcard: fieldsRaw[4] === '*',
   };
 
   const formatter = new Intl.DateTimeFormat('en-US', {
