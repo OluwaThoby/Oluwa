@@ -92,3 +92,56 @@ COMMENT ON FUNCTION public.claim_automation_runs(text, integer, integer)
   IS 'Atomically claims queued AgencyOS automation runs using SKIP LOCKED and bounded leases; does not execute job actions.';
 
 REVOKE ALL ON FUNCTION public.claim_automation_runs(text, integer, integer) FROM PUBLIC;
+
+-- Lease-token guarded completion. A stale worker cannot finish a run after
+-- expiry or after another worker has reclaimed it with a new token.
+CREATE OR REPLACE FUNCTION public.complete_automation_run(
+  p_run_id uuid,
+  p_lease_token uuid,
+  p_status text,
+  p_result jsonb DEFAULT NULL,
+  p_error_message text DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  affected integer;
+BEGIN
+  IF p_run_id IS NULL OR p_lease_token IS NULL THEN
+    RAISE EXCEPTION 'run id and lease token are required';
+  END IF;
+  IF p_status NOT IN ('succeeded', 'failed') THEN
+    RAISE EXCEPTION 'invalid terminal run status';
+  END IF;
+  IF p_result IS NOT NULL AND octet_length(p_result::text) > 65536 THEN
+    RAISE EXCEPTION 'run result exceeds the 64 KB limit';
+  END IF;
+  IF p_error_message IS NOT NULL AND length(p_error_message) > 2000 THEN
+    RAISE EXCEPTION 'run error message exceeds the 2,000 character limit';
+  END IF;
+
+  UPDATE public.automation_runs
+  SET status = p_status,
+      result = p_result,
+      error_message = CASE WHEN p_status = 'failed' THEN NULLIF(btrim(p_error_message), '') ELSE NULL END,
+      finished_at = now(),
+      lease_owner = NULL,
+      lease_token = NULL,
+      lease_expires_at = NULL
+  WHERE id = p_run_id
+    AND status = 'running'
+    AND lease_token = p_lease_token
+    AND lease_expires_at > now();
+
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  RETURN affected = 1;
+END;
+$$;
+
+COMMENT ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text)
+  IS 'Completes a run only while its lease token is current and unexpired; stale workers are rejected.';
+
+REVOKE ALL ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text) FROM PUBLIC;
