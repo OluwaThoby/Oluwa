@@ -48,7 +48,6 @@ function QualificationAction({id,hasWebsite,businessName}:{id:string;hasWebsite:
     <div style={{padding:'5px 0',borderTop:'1px solid var(--line)'}}><b>Research:</b> {result.researchTask?('Queued · '+result.researchTask.id):'Not queued'}</div>
     <div style={{padding:'5px 0',borderTop:'1px solid var(--line)'}}><b>Proposal:</b> {result.proposal?('Draft saved · '+result.proposal.id):'Not saved'}</div>
     <p className='notice'>The research task still needs a configured AI runtime to be processed. The proposal is a reviewable draft based on recorded business details and any saved inspection. Nothing has been sent or approved.</p>
-    <button className='btn' type='button' onClick={()=>{window.location.href='/dashboard/agent-tasks'}}>Open agent tasks</button>
    </div>
   </details>}
  </div>
