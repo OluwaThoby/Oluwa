@@ -48,7 +48,7 @@ export async function POST(req:Request){
   return NextResponse.json({invoice:rows[0]});
  }
  if(action==='record_payment'){
-  const id=String(b.invoice_id||''),amount=money(b.amount),method=['bank_transfer','cash','card','payment_link','other'].includes(b.method)?b.method:'other';
+  const id=String(b.invoice_id||''),amount=money(b.amount),method=['bank_transfer','cash','card','payment_link','payoneer','other'].includes(b.method)?b.method:'other';
   const idempotencyKey=String(b.idempotency_key||'');
   if(!id||!Number.isFinite(amount)||amount<=0||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey))return NextResponse.json({error:'Enter a valid payment amount and request key.'},{status:400});
   const date=b.payment_date?dateOnly(b.payment_date):null;if(b.payment_date&&!date)return NextResponse.json({error:'Enter a valid payment date.'},{status:400});
