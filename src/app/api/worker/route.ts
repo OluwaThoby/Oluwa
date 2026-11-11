@@ -6,6 +6,7 @@ import { processAutomationRun } from '@/lib/intelligence/automation-processor.mj
 import { isAuthorizedWorkerRequest } from '@/lib/security/worker-auth.mjs';
 import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
 import { materializeDueSchedules } from '@/lib/intelligence/materialize-schedules.mjs';
+import { normalizeAgentTaskType } from '@/lib/intelligence/agent-task-types.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -159,11 +160,7 @@ export async function POST(request: Request) {
       try {
         const input = asObject(task.input);
         const rawTaskType = String(task.task_type || 'general');
-        const supportedTypes = new Set([
-          'prospect_research', 'seo_monitoring', 'report_generation',
-          'client_followup', 'invoice_reminder', 'general',
-        ]);
-        const jobType = supportedTypes.has(rawTaskType) ? rawTaskType : 'general';
+        const jobType = normalizeAgentTaskType(rawTaskType);
         const config = {
           instructions: [
             `Assigned specialist agent: ${String(task.agent_key)}.`,
