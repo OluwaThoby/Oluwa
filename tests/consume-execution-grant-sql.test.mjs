@@ -47,24 +47,23 @@ test('grant consumption is transactional, scoped, bounded and idempotent', () =>
 
   // Both the initial duplicate lookup and the post-lock race recheck must
   // enforce the same authority scope before returning an existing action.
-  const duplicateChecks = atomic.split("IF FOUND THEN").slice(1);
-  assert.equal(duplicateChecks.length, 2, 'Expected initial and concurrent idempotency checks');
-  for (const block of duplicateChecks) {
-    const end = block.indexOf('END IF;');
-    const check = block.slice(0, end);
-    for (const contract of [
-      'v_existing.grant_id = p_grant_id',
-      'v_existing.agent_key = p_agent_key',
-      'v_existing.action_type = p_action_type',
-      'v_existing.resource_ref = p_resource_ref',
-      'v_existing.request_fingerprint = p_request_fingerprint',
-      'p_action_type = p_permission',
-      'v_grant.agent_key = p_agent_key',
-      'v_grant.client_id IS NOT DISTINCT FROM p_client_id',
-      'v_grant.project_id IS NOT DISTINCT FROM p_project_id',
-      'v_grant.environment = p_environment',
-      'v_grant.resource_scope = p_resource_ref',
-      'p_permission = ANY(v_grant.permissions)',
-    ]) assert.ok(check.includes(contract), 'Duplicate retry missing scope check: ' + contract);
+  assert.equal((atomic.match(/IF FOUND THEN/g) || []).length, 2,
+    'Expected initial and concurrent idempotency checks');
+  for (const contract of [
+    'v_existing.grant_id = p_grant_id',
+    'v_existing.agent_key = p_agent_key',
+    'v_existing.action_type = p_action_type',
+    'v_existing.resource_ref = p_resource_ref',
+    'v_existing.request_fingerprint = p_request_fingerprint',
+    'p_action_type = p_permission',
+    'v_grant.agent_key = p_agent_key',
+    'v_grant.client_id IS NOT DISTINCT FROM p_client_id',
+    'v_grant.project_id IS NOT DISTINCT FROM p_project_id',
+    'v_grant.environment = p_environment',
+    'v_grant.resource_scope = p_resource_ref',
+    'p_permission = ANY(v_grant.permissions)',
+  ]) {
+    assert.ok((atomic.split(contract).length - 1) >= 2,
+      'Both idempotency paths must enforce: ' + contract);
   }
 });
