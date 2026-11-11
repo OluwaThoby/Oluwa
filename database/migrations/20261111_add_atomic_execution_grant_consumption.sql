@@ -29,7 +29,6 @@ BEGIN
     RAISE EXCEPTION 'invalid_execution_request' USING ERRCODE = '22023';
   END IF;
 
-  -- An idempotent retry must not consume another use or create another action.
   SELECT * INTO v_existing
   FROM public.execution_action_log
   WHERE idempotency_key = p_idempotency_key;
@@ -49,7 +48,6 @@ BEGIN
     RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = '23505';
   END IF;
 
-  -- Row lock serializes competing consumers of the same grant.
   SELECT * INTO v_grant
   FROM public.execution_grants
   WHERE id = p_grant_id
@@ -64,23 +62,18 @@ BEGIN
   IF v_grant.starts_at > now() OR v_grant.expires_at <= now() THEN
     RAISE EXCEPTION 'execution_grant_outside_validity_window' USING ERRCODE = '42501';
   END IF;
-  IF NOT (p_permission = ANY(v_grant.permissions)) THEN
-    RAISE EXCEPTION 'execution_permission_not_granted' USING ERRCODE = '42501';
+  IF NOT (p_permission = ANY(v_grant.permissions)) OR p_action_type <> p_permission THEN
+    RAISE EXCEPTION 'execution_permission_or_action_mismatch' USING ERRCODE = '42501';
   END IF;
   IF v_grant.agent_key <> p_agent_key
      OR v_grant.client_id IS DISTINCT FROM p_client_id
      OR v_grant.project_id IS DISTINCT FROM p_project_id
-     OR v_grant.environment <> p_environment THEN
+     OR v_grant.environment <> p_environment
+     OR v_grant.resource_scope <> p_resource_ref THEN
     RAISE EXCEPTION 'execution_grant_scope_mismatch' USING ERRCODE = '42501';
   END IF;
   IF v_grant.max_uses IS NOT NULL AND v_grant.uses_count >= v_grant.max_uses THEN
-    UPDATE public.execution_grants SET status = 'exhausted', updated_at = now()
-    WHERE id = v_grant.id;
     RAISE EXCEPTION 'execution_grant_use_limit_reached' USING ERRCODE = '42501';
-  END IF;
-  IF v_grant.limits ? 'resource_refs'
-     AND NOT (v_grant.limits->'resource_refs' @> jsonb_build_array(p_resource_ref)) THEN
-    RAISE EXCEPTION 'execution_resource_not_in_allowlist' USING ERRCODE = '42501';
   END IF;
 
   UPDATE public.execution_grants
@@ -109,4 +102,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.consume_execution_grant(uuid,text,text,uuid,uuid,text,text,text,text,uuid)
-IS 'Atomically validates and consumes one scoped grant use, records an idempotent requested action, and never performs the external action itself.';
+IS 'Atomically validates exact resource scope and consumes one grant use, records an idempotent request, and never performs the external action itself.';
