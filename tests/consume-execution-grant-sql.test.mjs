@@ -10,16 +10,20 @@ test('atomic function references columns and status values defined by authority 
     'agent_key', 'client_id', 'project_id', 'resource_scope', 'environment',
     'permissions', 'status', 'max_uses', 'uses_count', 'starts_at', 'expires_at',
     'revoked_at', 'updated_at',
-  ]) {
-    assert.match(authority, new RegExp('\\b' + column + '\\b'));
-    assert.match(atomic, new RegExp('\\bv_grant\\.' + column + '\\b'));
-  }
+  ]) assert.match(authority, new RegExp('\\\\b' + column + '\\\\b'));
+
+  for (const column of [
+    'agent_key', 'client_id', 'project_id', 'resource_scope', 'environment',
+    'permissions', 'status', 'max_uses', 'uses_count', 'starts_at', 'expires_at',
+    'revoked_at',
+  ]) assert.match(atomic, new RegExp('\\\\bv_grant\\\\.' + column + '\\\\b'));
+
   for (const column of [
     'grant_id', 'agent_key', 'action_type', 'resource_ref',
     'request_fingerprint', 'idempotency_key', 'status',
   ]) {
-    assert.match(authority, new RegExp('\\b' + column + '\\b'));
-    assert.match(atomic, new RegExp('\\b' + column + '\\b'));
+    assert.match(authority, new RegExp('\\\\b' + column + '\\\\b'));
+    assert.match(atomic, new RegExp('\\\\b' + column + '\\\\b'));
   }
   assert.ok(authority.includes("status IN ('active','revoked','expired','exhausted')"));
   assert.ok(authority.includes("status IN ('requested','executing','provider_accepted','succeeded','failed','rolled_back','blocked')"));
