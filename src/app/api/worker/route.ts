@@ -5,6 +5,7 @@ import { generateAgencyText } from '@/lib/intelligence/model-runtime';
 import { processAutomationRun } from '@/lib/intelligence/automation-processor.mjs';
 import { isAuthorizedWorkerRequest } from '@/lib/security/worker-auth.mjs';
 import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
+import { materializeDueSchedules } from '@/lib/intelligence/materialize-schedules.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -111,17 +112,19 @@ export async function POST(request: Request) {
         to_regprocedure('public.claim_automation_runs(text,integer,integer)') IS NOT NULL AS automation_claim_ready,
         to_regprocedure('public.complete_automation_run(uuid,uuid,text,jsonb,text)') IS NOT NULL AS automation_complete_ready,
         to_regprocedure('public.claim_agent_tasks(text,integer,integer)') IS NOT NULL AS agent_claim_ready,
-        to_regprocedure('public.complete_agent_task(uuid,uuid,text,jsonb,text)') IS NOT NULL AS agent_complete_ready
+        to_regprocedure('public.complete_agent_task(uuid,uuid,text,jsonb,text)') IS NOT NULL AS agent_complete_ready,
+        to_regprocedure('public.materialize_scheduled_automation_run(uuid,timestamptz,timestamptz)') IS NOT NULL AS schedule_materializer_ready
     ` as Array<Record<string, boolean>>;
     const ready = readiness[0];
     if (!ready || !ready.automation_claim_ready || !ready.automation_complete_ready ||
-        !ready.agent_claim_ready || !ready.agent_complete_ready) {
+        !ready.agent_claim_ready || !ready.agent_complete_ready || !ready.schedule_materializer_ready) {
       return NextResponse.json(
         { error: 'Worker database migrations are incomplete. No jobs were claimed.' },
         { status: 503 },
       );
     }
 
+    const scheduleResult = await materializeDueSchedules(db, new Date(), 10);
     const claimedAgentTasks = await db`
       SELECT * FROM public.claim_agent_tasks(
         ${workerId},
@@ -256,6 +259,8 @@ export async function POST(request: Request) {
       claimed: claimedAgentTasks.length + claimedRuns.length,
       claimedAgentTasks: claimedAgentTasks.length,
       claimedAutomationRuns: claimedRuns.length,
+      schedulesChecked: scheduleResult.checked,
+      scheduledRunsCreated: scheduleResult.materialized.filter((item: any) => item.runId).length,
       processed: outcomes.length,
       outcomes,
       externalActionsEnabled: false,
