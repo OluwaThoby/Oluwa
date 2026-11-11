@@ -1,0 +1,41 @@
+name: AgencyOS scheduled worker tick
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: agencyos-scheduled-worker
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke protected AgencyOS worker
+        env:
+          WORKER_URL: ${{ secrets.AGENCYOS_WORKER_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${WORKER_URL}" || -z "${CRON_SECRET}" ]]; then
+            echo "Scheduler is installed but inactive: AGENCYOS_WORKER_URL and CRON_SECRET repository secrets are required."
+            exit 0
+          fi
+          case "${WORKER_URL}" in
+            https://*) ;;
+            *)
+              echo "Worker URL must use HTTPS."
+              exit 1
+              ;;
+          esac
+          WORKER_URL="${WORKER_URL%/}"
+          curl --fail --silent --show-error --max-time 35 \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data '{"batch_size":3}' \
+            "${WORKER_URL}/api/worker"

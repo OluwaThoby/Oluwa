@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "src/**"
+      - "database/migrations/**"
       - "tests/**"
       - "package.json"
       - ".github/workflows/agencyos-app-tests.yml"
