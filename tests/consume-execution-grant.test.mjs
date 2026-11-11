@@ -19,17 +19,17 @@ test('valid consumption request passes strict input validation', () => {
   assert.deepEqual(validateGrantConsumption(valid), { valid: true, reason: 'valid_request' });
 });
 
-test('malformed identifiers, permission, environment and fingerprint fail closed', () => {
+test('workspace-wide grant may omit client and project scope', () => {
+  assert.equal(validateGrantConsumption({ ...valid, clientId: null, projectId: null }).valid, true);
+});
+
+test('malformed identifiers, permission, environment, action and fingerprint fail closed', () => {
   for (const patch of [
-    { grantId: 'not-a-uuid' },
-    { permission: 'financial_action' },
-    { environment: 'production-ish' },
-    { requestFingerprint: 'short' },
-    { resourceRef: ' ' },
-    { actionType: 'x' },
-  ]) {
-    assert.equal(validateGrantConsumption({ ...valid, ...patch }).valid, false);
-  }
+    { grantId: 'not-a-uuid' }, { permission: 'financial_action' },
+    { environment: 'production-ish' }, { requestFingerprint: 'short' },
+    { resourceRef: ' ' }, { actionType: 'content_publish' },
+    { clientId: 'bad-id' }, { projectId: 'bad-id' },
+  ]) assert.equal(validateGrantConsumption({ ...valid, ...patch }).valid, false);
 });
 
 test('invalid requests never call the database', async () => {
@@ -43,34 +43,24 @@ test('valid requests call the atomic database function with parameterized values
   let captured;
   const fakeDb = async (strings, ...values) => {
     captured = { sql: strings.join('?'), values };
-    return [{ result: {
-      action_id: '55555555-5555-4555-8555-555555555555',
-      grant_id: valid.grantId,
-      status: 'requested',
-      duplicate: false,
-    } }];
+    return [{ result: { action_id: '55555555-5555-4555-8555-555555555555', grant_id: valid.grantId, status: 'requested', duplicate: false } }];
   };
   const result = await consumeExecutionGrant(fakeDb, valid);
   assert.equal(result.consumed, true);
   assert.equal(result.duplicate, false);
   assert.equal(captured.values.length, 10);
   assert.ok(captured.sql.includes('public.consume_execution_grant'));
-  assert.ok(!captured.sql.includes(valid.grantId), 'user values must remain parameterized');
+  assert.ok(!captured.sql.includes(valid.grantId));
 });
 
-test('idempotent database response is surfaced without a second local action', async () => {
-  const fakeDb = async () => [{ result: {
-    action_id: '55555555-5555-4555-8555-555555555555',
-    grant_id: valid.grantId,
-    status: 'requested',
-    duplicate: true,
-  } }];
+test('idempotent database response is surfaced as duplicate', async () => {
+  const fakeDb = async () => [{ result: { action_id: '55555555-5555-4555-8555-555555555555', grant_id: valid.grantId, status: 'requested', duplicate: true } }];
   const result = await consumeExecutionGrant(fakeDb, valid);
   assert.equal(result.consumed, true);
   assert.equal(result.duplicate, true);
 });
 
-test('database failures fail closed and never report execution success', async () => {
+test('database failures fail closed', async () => {
   const result = await consumeExecutionGrant(async () => { throw new Error('db unavailable'); }, valid);
   assert.deepEqual(result, { consumed: false, reason: 'grant_consumption_failed' });
 });
