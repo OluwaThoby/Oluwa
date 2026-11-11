@@ -25,7 +25,7 @@ function asObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
-async function loadEvidence(db: ReturnType<typeof neon>, jobType: string, config: Record<string, unknown>, input: Record<string, unknown>) {
+async function loadEvidence(db: any, jobType: string, config: Record<string, unknown>, input: Record<string, unknown>) {
   const suppliedEvidence = asObject(input.evidence);
   const rawProspectId = input.prospect_id ?? config.prospect_id;
   if (rawProspectId != null && String(rawProspectId).trim() && !UUID.test(String(rawProspectId))) {
@@ -40,7 +40,7 @@ async function loadEvidence(db: ReturnType<typeof neon>, jobType: string, config
     FROM public.prospects
     WHERE id = ${prospectId}
     LIMIT 1
-  `;
+  ` as Array<Record<string, any>>;
   if (!prospects[0]) throw new Error('The referenced prospect was not found.');
   const evidence: Record<string, unknown> = { ...suppliedEvidence, prospect: prospects[0] };
 
@@ -51,13 +51,13 @@ async function loadEvidence(db: ReturnType<typeof neon>, jobType: string, config
       WHERE prospect_id = ${prospectId}
       ORDER BY verified_at DESC NULLS LAST,created_at DESC
       LIMIT 1
-    `;
+    ` as Array<Record<string, any>>;
     if (audits[0]) evidence.latest_website_audit = audits[0];
   }
   return evidence;
 }
 
-async function complete(db: ReturnType<typeof neon>, runId: string, leaseToken: string, status: 'succeeded' | 'failed', result: unknown, errorMessage: string | null) {
+async function complete(db: any, runId: string, leaseToken: string, status: 'succeeded' | 'failed', result: unknown, errorMessage: string | null) {
   const rows = await db`
     SELECT public.complete_automation_run(
       ${runId}::uuid,
@@ -66,7 +66,7 @@ async function complete(db: ReturnType<typeof neon>, runId: string, leaseToken: 
       ${result == null ? null : JSON.stringify(result)}::jsonb,
       ${errorMessage}
     ) AS status
-  `;
+  ` as Array<{ status?: unknown }>;
   return typeof rows[0]?.status === 'string' ? rows[0].status : null;
 }
 
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         ${batchSize},
         180
       )
-    `;
+    ` as Array<Record<string, any>>;
 
     const outcomes: Array<Record<string, unknown>> = [];
     for (const run of claimed) {
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
           FROM public.automation_jobs
           WHERE id = ${run.job_id}
           LIMIT 1
-        `;
+        ` as Array<Record<string, any>>;
         const job = jobs[0];
         if (!job) throw new Error('The automation job definition no longer exists.');
         if (job.status !== 'active') throw new Error('The automation job was paused before processing.');
