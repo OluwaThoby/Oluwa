@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { generateAgencyText } from '@/lib/intelligence/model-runtime';
 import { processAutomationRun } from '@/lib/intelligence/automation-processor.mjs';
+import { isAuthorizedWorkerRequest } from '@/lib/security/worker-auth.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,10 +12,7 @@ export const maxDuration = 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function hasValidWorkerSecret(request: Request) {
-  const configured = process.env.CRON_SECRET;
-  const supplied = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-  if (!configured || configured.length < 32 || supplied.length !== configured.length) return false;
-  return timingSafeEqual(Buffer.from(supplied), Buffer.from(configured));
+  return isAuthorizedWorkerRequest(request.headers.get('authorization'), process.env.CRON_SECRET);
 }
 
 function modelIsConfigured() {
