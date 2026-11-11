@@ -21,20 +21,23 @@ test('atomic function references columns and status values defined by authority 
     assert.match(authority, new RegExp('\\b' + column + '\\b'));
     assert.match(atomic, new RegExp('\\b' + column + '\\b'));
   }
-  assert.match(authority, /status IN \\('active','revoked','expired','exhausted'\\)/);
-  assert.match(authority, /status IN \\('requested','executing','provider_accepted','succeeded','failed','rolled_back','blocked'\\)/);
-  assert.match(authority, /idempotency_key uuid NOT NULL UNIQUE/);
+  assert.ok(authority.includes("status IN ('active','revoked','expired','exhausted')"));
+  assert.ok(authority.includes("status IN ('requested','executing','provider_accepted','succeeded','failed','rolled_back','blocked')"));
+  assert.ok(authority.includes('idempotency_key uuid NOT NULL UNIQUE'));
 });
 
 test('grant consumption is transactional, scoped, bounded and idempotent', () => {
-  assert.match(atomic, /FOR UPDATE/);
-  assert.match(atomic, /uses_count = uses_count \\+ 1/);
-  assert.match(atomic, /v_grant\\.resource_scope = p_resource_ref/);
-  assert.match(atomic, /v_grant\\.client_id IS NOT DISTINCT FROM p_client_id/);
-  assert.match(atomic, /v_grant\\.project_id IS NOT DISTINCT FROM p_project_id/);
-  assert.match(atomic, /v_grant\\.environment = p_environment/);
-  assert.match(atomic, /v_grant\\.agent_key = p_agent_key/);
-  assert.match(atomic, /p_permission = ANY\\(v_grant\\.permissions\\)/);
-  assert.match(atomic, /REVOKE ALL ON FUNCTION .* FROM PUBLIC/);
+  for (const contract of [
+    'FOR UPDATE',
+    'uses_count = uses_count + 1',
+    'v_grant.resource_scope = p_resource_ref',
+    'v_grant.client_id IS NOT DISTINCT FROM p_client_id',
+    'v_grant.project_id IS NOT DISTINCT FROM p_project_id',
+    'v_grant.environment = p_environment',
+    'v_grant.agent_key = p_agent_key',
+    'p_permission = ANY(v_grant.permissions)',
+    'REVOKE ALL ON FUNCTION',
+    'FROM PUBLIC',
+  ]) assert.ok(atomic.includes(contract), 'Missing SQL contract: ' + contract);
   assert.doesNotMatch(atomic, /SECURITY DEFINER/);
 });
