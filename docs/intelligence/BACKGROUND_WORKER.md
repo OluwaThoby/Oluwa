@@ -31,9 +31,20 @@ All job content is treated as untrusted data. External messages, payments, publi
 
 The lease migration is not applied to the primary database. No production worker secret or model runtime has been configured by this change. Workflow definitions remain paused, and no scheduler has been connected. No background jobs have been run by this implementation.
 
+## Verification completed so far
+
+- The completion function was installed and inspected on the isolated Neon test branch only. Metadata confirms `SECURITY INVOKER`, no PUBLIC execute privilege, lease-token checking, expiry checking and bounded retries.
+- Rollback-contained SQL fixtures verified that a reclaimed run rejects the old worker token, accepts the new token, and cannot be claimed a second time after completion.
+- A simulated worker crash (expired lease) was recovered on the next claim, with the attempt counter incremented.
+- A failed run was requeued after attempt one and became terminal after reaching its two-attempt limit.
+- The fixture transaction was rolled back; a follow-up query confirmed zero test jobs and runs remained.
+- The latest application unit-test workflow passed after the lease completion and worker authentication changes.
+
+These checks were run against an isolated Neon branch, not the primary database. The sequential SQL checks do not replace a true simultaneous multi-session concurrency test, and the worker HTTP route has not yet had an authenticated end-to-end run against a deployed preview.
+
 ## Remaining verification gates
 
-- Apply the additive migration to an isolated test branch and run real SQL behavior tests for competing claims, current/stale/expired lease completion, retry exhaustion and crash recovery.
+- Run a true simultaneous multi-session claim test and authenticated worker route integration test.
 - Add scheduled-run materialization with idempotent schedule keys and timezone/DST tests.
-- Add a separately authorised, SSRF-safe live website-audit task adapter.
-- Verify route-level integration and deployment configuration before any production activation.
+- Add a separately authorised, SSRF-safe live website-audit task adapter. Current SEO monitoring only analyses the latest saved audit.
+- Verify the complete production build and deployment configuration before any production activation.
