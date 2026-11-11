@@ -36,7 +36,7 @@ test('schedule materialization is idempotent and serialized per workflow', () =>
 
 test('worker materializes due schedules before it claims runs', () => {
   const materializeAt = worker.indexOf('materializeDueSchedules(db, new Date(), 10)');
-  const claimAt = worker.indexOf('public.claim_agent_tasks(');
+  const claimAt = worker.indexOf('SELECT * FROM public.claim_agent_tasks(');
   assert.ok(materializeAt >= 0 && claimAt > materializeAt);
   assert.ok(worker.includes('schedule_materializer_ready'));
 });
