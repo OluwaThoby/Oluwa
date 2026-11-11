@@ -56,7 +56,7 @@ test('worker checks both lease migrations before claiming and processes agent ta
     'complete_agent_task',
     'claim_automation_runs',
     'complete_automation_run',
-    'requires_approval',
+    'processAutomationRun',
     'externalActionsEnabled: false',
   ]) assert.ok(worker.includes(contract), 'Worker is missing integration contract: ' + contract);
 });
