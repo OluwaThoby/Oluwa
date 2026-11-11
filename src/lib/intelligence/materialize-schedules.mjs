@@ -1,4 +1,4 @@
-import { nextCronOccurrence } from './cron-schedule.mjs';
+import { nextCronOccurrence } from '../cron-schedule.mjs';
 
 const MAX_DUE_JOBS_PER_TICK = 10;
 
