@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { generateAgencyText } from '@/lib/intelligence/model-runtime';
 import { processAutomationRun } from '@/lib/intelligence/automation-processor.mjs';
 import { isAuthorizedWorkerRequest } from '@/lib/security/worker-auth.mjs';
+import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,18 +16,7 @@ function hasValidWorkerSecret(request: Request) {
   return isAuthorizedWorkerRequest(request.headers.get('authorization'), process.env.CRON_SECRET);
 }
 
-function modelIsConfigured() {
-  const runtimeKind = process.env.AGENCY_MODEL_RUNTIME || 'vercel-gateway';
-  if (runtimeKind === 'vercel-gateway') return Boolean(process.env.AI_GATEWAY_MODEL?.trim());
-  if (runtimeKind === 'self-hosted') {
-    return Boolean(
-      process.env.AGENCY_MODEL_ENDPOINT?.trim() &&
-      process.env.AGENCY_MODEL_NAME?.trim() &&
-      process.env.AGENCY_MODEL_TOKEN?.trim(),
-    );
-  }
-  return false;
-}
+
 
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -87,7 +77,7 @@ export async function POST(request: Request) {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Worker database is not configured.' }, { status: 503 });
   }
-  if (!modelIsConfigured()) {
+  if (!getAgencyModelRuntimeReadiness().configured) {
     return NextResponse.json({ error: 'An approved AI model runtime is not configured. No runs were claimed.' }, { status: 503 });
   }
 
