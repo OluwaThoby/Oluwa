@@ -51,7 +51,7 @@ export function nextCronOccurrence(expression, timezone, after = new Date()) {
   if (!isValidCron(expression)) throw new TypeError('Invalid five-field cron expression.');
   if (typeof timezone !== 'string' || !timezone.trim()) throw new TypeError('A timezone is required.');
 
-  const fieldsRaw = expression.trim().split(/\\s+/);
+  const fieldsRaw = expression.trim().split(/\s+/);
   const fields = {
     minute: expandField(fieldsRaw[0], 0, 59),
     hour: expandField(fieldsRaw[1], 0, 23),
