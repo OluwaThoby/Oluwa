@@ -9,22 +9,22 @@ test('atomic function references columns and status values defined by authority 
   for (const column of [
     'agent_key', 'client_id', 'project_id', 'resource_scope', 'environment',
     'permissions', 'status', 'max_uses', 'uses_count', 'starts_at', 'expires_at',
-    'revoked_at', 'updated_at',
-  ]) assert.match(authority, new RegExp('\\\\b' + column + '\\\\b'));
+    'revoked_at', 'updated_at', 'grant_id', 'action_type', 'resource_ref',
+    'request_fingerprint', 'idempotency_key',
+  ]) assert.ok(authority.includes(column), 'Missing schema column: ' + column);
 
-  for (const column of [
-    'agent_key', 'client_id', 'project_id', 'resource_scope', 'environment',
-    'permissions', 'status', 'max_uses', 'uses_count', 'starts_at', 'expires_at',
-    'revoked_at',
-  ]) assert.match(atomic, new RegExp('\\\\bv_grant\\\\.' + column + '\\\\b'));
+  for (const reference of [
+    'v_grant.agent_key', 'v_grant.client_id', 'v_grant.project_id',
+    'v_grant.resource_scope', 'v_grant.environment', 'v_grant.permissions',
+    'v_grant.status', 'v_grant.max_uses', 'v_grant.uses_count',
+    'v_grant.starts_at', 'v_grant.expires_at', 'v_grant.revoked_at',
+  ]) assert.ok(atomic.includes(reference), 'Missing function reference: ' + reference);
 
   for (const column of [
     'grant_id', 'agent_key', 'action_type', 'resource_ref',
     'request_fingerprint', 'idempotency_key', 'status',
-  ]) {
-    assert.match(authority, new RegExp('\\\\b' + column + '\\\\b'));
-    assert.match(atomic, new RegExp('\\\\b' + column + '\\\\b'));
-  }
+  ]) assert.ok(atomic.includes(column), 'Missing audit column: ' + column);
+
   assert.ok(authority.includes("status IN ('active','revoked','expired','exhausted')"));
   assert.ok(authority.includes("status IN ('requested','executing','provider_accepted','succeeded','failed','rolled_back','blocked')"));
   assert.ok(authority.includes('idempotency_key uuid NOT NULL UNIQUE'));
