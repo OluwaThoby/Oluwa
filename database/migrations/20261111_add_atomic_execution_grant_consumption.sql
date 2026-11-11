@@ -82,11 +82,20 @@ BEGIN
   FROM public.execution_action_log
   WHERE idempotency_key = p_idempotency_key;
   IF FOUND THEN
+    -- The retry may have raced with the first consumer. Revalidate the full
+    -- authority scope before returning the existing action.
     IF v_existing.grant_id = p_grant_id
        AND v_existing.agent_key = p_agent_key
        AND v_existing.action_type = p_action_type
        AND v_existing.resource_ref = p_resource_ref
-       AND v_existing.request_fingerprint = p_request_fingerprint THEN
+       AND v_existing.request_fingerprint = p_request_fingerprint
+       AND p_action_type = p_permission
+       AND v_grant.agent_key = p_agent_key
+       AND v_grant.client_id IS NOT DISTINCT FROM p_client_id
+       AND v_grant.project_id IS NOT DISTINCT FROM p_project_id
+       AND v_grant.environment = p_environment
+       AND v_grant.resource_scope = p_resource_ref
+       AND p_permission = ANY(v_grant.permissions) THEN
       RETURN jsonb_build_object(
         'action_id', v_existing.id,
         'grant_id', v_existing.grant_id,
