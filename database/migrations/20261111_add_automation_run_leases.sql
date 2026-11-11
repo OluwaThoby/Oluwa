@@ -102,13 +102,13 @@ CREATE OR REPLACE FUNCTION public.complete_automation_run(
   p_result jsonb DEFAULT NULL,
   p_error_message text DEFAULT NULL
 )
-RETURNS boolean
+RETURNS text
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  affected integer;
+  resulting_status text;
 BEGIN
   IF p_run_id IS NULL OR p_lease_token IS NULL THEN
     RAISE EXCEPTION 'run id and lease token are required';
@@ -123,25 +123,34 @@ BEGIN
     RAISE EXCEPTION 'run error message exceeds the 2,000 character limit';
   END IF;
 
-  UPDATE public.automation_runs
-  SET status = p_status,
-      result = p_result,
+  UPDATE public.automation_runs AS r
+  SET status = CASE
+        WHEN p_status = 'failed' AND r.attempt_count < j.max_attempts THEN 'queued'
+        ELSE p_status
+      END,
+      result = CASE WHEN p_status = 'succeeded' THEN p_result ELSE r.result END,
       error_message = CASE WHEN p_status = 'failed' THEN NULLIF(btrim(p_error_message), '') ELSE NULL END,
-      finished_at = now(),
+      finished_at = CASE
+        WHEN p_status = 'failed' AND r.attempt_count < j.max_attempts THEN NULL
+        ELSE now()
+      END,
       lease_owner = NULL,
       lease_token = NULL,
       lease_expires_at = NULL
-  WHERE id = p_run_id
-    AND status = 'running'
-    AND lease_token = p_lease_token
-    AND lease_expires_at > now();
+  FROM public.automation_jobs AS j
+  WHERE r.id = p_run_id
+    AND r.job_id = j.id
+    AND r.status = 'running'
+    AND r.lease_token = p_lease_token
+    AND r.lease_expires_at > now()
+  RETURNING r.status INTO resulting_status;
 
-  GET DIAGNOSTICS affected = ROW_COUNT;
-  RETURN affected = 1;
+  -- NULL means the lease was stale, expired, or already completed.
+  RETURN resulting_status;
 END;
 $$;
 
 COMMENT ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text)
-  IS 'Completes a run only while its lease token is current and unexpired; stale workers are rejected.';
+  IS 'Completes a run only while its lease token is current and unexpired; failed runs are requeued within max_attempts, stale workers are rejected.';
 
 REVOKE ALL ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text) FROM PUBLIC;
