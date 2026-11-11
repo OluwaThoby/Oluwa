@@ -62,7 +62,21 @@ Publishing requires destination/channel allowlisting, content-version approval, 
 ## Emergency stop
 A global kill switch and per-client/per-agent pause must stop new external side effects immediately. In-flight operations must be tracked and safely completed, cancelled or compensated. Triggers include credential compromise, unexpected recipient/domain, repeated provider errors, unusual volume, security findings, scope mismatch or failed post-deployment health checks.
 
-## Current implementation boundary
-The repository currently has a draft-generation agent executor and an approve_draft decision flow. It does **not** yet have production email, CMS publishing or client deployment adapters, nor the durable scoped-grant database/API described above. The new execution-policy module classifies action intent and validates a grant shape for future adapters; it does not create grants, perform side effects or enable execution. Financial actions remain denied even if accidentally included in a general grant.
+## Atomic grant consumption contract
+The additive migration `20261111_add_atomic_execution_grant_consumption.sql` defines `public.consume_execution_grant(...)`. Within one database transaction it:
 
-Do not enable external execution until the grant store, approval UI, provider adapters, audit trail, kill switch, idempotency and end-to-end tests are implemented. Never represent a planned or queued action as completed.
+- validates the grant's active status and validity window;
+- checks the exact agent, optional client/project IDs, environment, permission and exact `resource_scope` match;
+- requires the action type to equal the granted permission;
+- serializes competing consumers by locking the grant row;
+- increments the use count and exhausts a grant at its configured limit;
+- records one `requested` action row with a unique idempotency key and request fingerprint.
+
+A matching retry returns the existing action record without consuming another use. Reusing an idempotency key for a different grant/action/resource/fingerprint is rejected. This function records authority consumption only: it does not call a provider, send a message, publish content, or deploy anything.
+
+The migration is committed on the feature branch but has **not** been applied to the live database. The application helper in `src/lib/intelligence/consume-execution-grant.mjs` fails closed on invalid input, missing database access, malformed responses and database errors. Unit tests exercise validation, parameterization, duplicate handling and failure behavior; they do not replace a real PostgreSQL integration test.
+
+## Current implementation boundary
+The repository has a draft-generation agent executor, an approve_draft decision flow, scoped grant APIs/schema and a fail-closed atomic grant-consumption helper. It still does **not** have production email, CMS publishing or client deployment adapters, nor a live worker that executes queued actions. The new helper is not yet wired into an executor. No external side effect is enabled by this change. Financial actions remain denied even if accidentally included in a general grant.
+
+Before external execution can be enabled: review and explicitly approve/apply the grant and consumption migrations; verify database privileges and constraints; add isolated PostgreSQL integration tests for locking, idempotent races, scope mismatch and use limits; implement the approval UI, provider adapters, audit verification, kill switch and end-to-end tests. Never represent a consumed grant or `requested` action as an executed or completed action.
