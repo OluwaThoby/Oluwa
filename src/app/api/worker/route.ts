@@ -70,6 +70,19 @@ async function complete(db: any, runId: string, leaseToken: string, status: 'suc
   return typeof rows[0]?.status === 'string' ? rows[0].status : null;
 }
 
+async function completeAgentTask(db: any, taskId: string, leaseToken: string, status: 'succeeded' | 'failed', output: unknown, errorMessage: string | null) {
+  const rows = await db`
+    SELECT public.complete_agent_task(
+      ${taskId}::uuid,
+      ${leaseToken}::uuid,
+      ${status},
+      ${output == null ? null : JSON.stringify(output)}::jsonb,
+      ${errorMessage}
+    ) AS status
+  ` as Array<{ status?: unknown }>;
+  return typeof rows[0]?.status === 'string' ? rows[0].status : null;
+}
+
 export async function POST(request: Request) {
   if (!hasValidWorkerSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized worker request.' }, { status: 401 });
@@ -93,16 +106,98 @@ export async function POST(request: Request) {
   const db = neon(process.env.DATABASE_URL);
 
   try {
-    const claimed = await db`
-      SELECT * FROM public.claim_automation_runs(
+    const readiness = await db`
+      SELECT
+        to_regprocedure('public.claim_automation_runs(text,integer,integer)') IS NOT NULL AS automation_claim_ready,
+        to_regprocedure('public.complete_automation_run(uuid,uuid,text,jsonb,text)') IS NOT NULL AS automation_complete_ready,
+        to_regprocedure('public.claim_agent_tasks(text,integer,integer)') IS NOT NULL AS agent_claim_ready,
+        to_regprocedure('public.complete_agent_task(uuid,uuid,text,jsonb,text)') IS NOT NULL AS agent_complete_ready
+    ` as Array<Record<string, boolean>>;
+    const ready = readiness[0];
+    if (!ready || !ready.automation_claim_ready || !ready.automation_complete_ready ||
+        !ready.agent_claim_ready || !ready.agent_complete_ready) {
+      return NextResponse.json(
+        { error: 'Worker database migrations are incomplete. No jobs were claimed.' },
+        { status: 503 },
+      );
+    }
+
+    const claimedAgentTasks = await db`
+      SELECT * FROM public.claim_agent_tasks(
         ${workerId},
         ${batchSize},
         180
       )
     ` as Array<Record<string, any>>;
-
+    const remainingBatch = Math.max(0, batchSize - claimedAgentTasks.length);
+    const claimedRuns = remainingBatch > 0
+      ? await db`
+          SELECT * FROM public.claim_automation_runs(
+            ${workerId},
+            ${remainingBatch},
+            180
+          )
+        ` as Array<Record<string, any>>
+      : [];
     const outcomes: Array<Record<string, unknown>> = [];
-    for (const run of claimed) {
+
+    for (const task of claimedAgentTasks) {
+      const taskId = String(task.id);
+      const leaseToken = String(task.lease_token ?? '');
+      if (!UUID.test(taskId) || !UUID.test(leaseToken)) {
+        outcomes.push({ taskId, kind: 'agent_task', status: 'invalid_claim_response' });
+        continue;
+      }
+
+      try {
+        const input = asObject(task.input);
+        const rawTaskType = String(task.task_type || 'general');
+        const supportedTypes = new Set([
+          'prospect_research', 'seo_monitoring', 'report_generation',
+          'client_followup', 'invoice_reminder', 'general',
+        ]);
+        const jobType = supportedTypes.has(rawTaskType) ? rawTaskType : 'general';
+        const config = {
+          instructions: [
+            `Assigned specialist agent: ${String(task.agent_key)}.`,
+            `Original task type: ${rawTaskType}.`,
+            String(task.instructions || ''),
+          ].filter(Boolean).join('\\n'),
+        };
+        const evidence = await loadEvidence(db, jobType, config, input);
+        const processed = await processAutomationRun({
+          jobType,
+          title: String(task.title),
+          config,
+          input,
+          evidence,
+          generate: generateAgencyText,
+        });
+        const output = {
+          ...processed,
+          agentKey: String(task.agent_key),
+          taskType: rawTaskType,
+        };
+        const taskStatus = await completeAgentTask(db, taskId, leaseToken, 'succeeded', output, null);
+        outcomes.push({ taskId, kind: 'agent_task', status: taskStatus ?? 'lease_lost' });
+      } catch {
+        try {
+          const taskStatus = await completeAgentTask(
+            db,
+            taskId,
+            leaseToken,
+            'failed',
+            null,
+            'Internal agent processing failed. Review task input/evidence and retry.',
+          );
+          outcomes.push({ taskId, kind: 'agent_task', status: taskStatus ?? 'lease_lost' });
+        } catch {
+          outcomes.push({ taskId, kind: 'agent_task', status: 'completion_unavailable' });
+        }
+      }
+    }
+
+    for (const run of claimedRuns) {
       const runId = String(run.id);
       const leaseToken = String(run.lease_token ?? '');
       if (!UUID.test(runId) || !UUID.test(leaseToken)) {
@@ -158,7 +253,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       workerId,
-      claimed: claimed.length,
+      claimed: claimedAgentTasks.length + claimedRuns.length,
+      claimedAgentTasks: claimedAgentTasks.length,
+      claimedAutomationRuns: claimedRuns.length,
       processed: outcomes.length,
       outcomes,
       externalActionsEnabled: false,
