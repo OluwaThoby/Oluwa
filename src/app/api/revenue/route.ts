@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server';
 import {neon} from '@neondatabase/serverless';
 import {auth} from '@/lib/auth';
 import { dateOnly, money } from '@/lib/finance-validation.mjs';
+import { normalizePaymentMethod } from '@/lib/payment-method.mjs';
 export const dynamic='force-dynamic';
 async function owner(){const {data}=await auth.getSession();const email=data?.user?.email;return Boolean(email&&process.env.OWNER_EMAIL&&email.toLowerCase()===process.env.OWNER_EMAIL.toLowerCase());}
 const currencyOk=(v:unknown)=>typeof v==='string'&&/^[A-Z]{3}$/.test(v);
@@ -48,9 +49,9 @@ export async function POST(req:Request){
   return NextResponse.json({invoice:rows[0]});
  }
  if(action==='record_payment'){
-  const id=String(b.invoice_id||''),amount=money(b.amount),method=['bank_transfer','cash','card','payment_link','payoneer','other'].includes(b.method)?b.method:'other';
+  const id=String(b.invoice_id||''),amount=money(b.amount),method=normalizePaymentMethod(b.method);
   const idempotencyKey=String(b.idempotency_key||'');
-  if(!id||!Number.isFinite(amount)||amount<=0||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey))return NextResponse.json({error:'Enter a valid payment amount and request key.'},{status:400});
+  if(!id||!method||!Number.isFinite(amount)||amount<=0||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey))return NextResponse.json({error:'Enter a valid payment amount and request key.'},{status:400});
   const date=b.payment_date?dateOnly(b.payment_date):null;if(b.payment_date&&!date)return NextResponse.json({error:'Enter a valid payment date.'},{status:400});
   const reference=typeof b.reference==='string'?b.reference.trim().slice(0,180):null,notes=typeof b.notes==='string'?b.notes.trim().slice(0,1000):null;
   const rows=await db`WITH target AS (SELECT id,currency,total,amount_paid,status FROM public.agency_invoices WHERE id=${id} AND status IN ('issued','partially_paid','overdue') FOR UPDATE), added AS (INSERT INTO public.agency_payments(invoice_id,amount,currency,payment_date,method,reference,notes,idempotency_key) SELECT id,${amount},currency,COALESCE(${date}::date,CURRENT_DATE),${method},${reference},${notes},${idempotencyKey}::uuid FROM target WHERE total-amount_paid>=${amount} ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING RETURNING invoice_id,amount), updated AS (UPDATE public.agency_invoices i SET amount_paid=i.amount_paid+a.amount,status=CASE WHEN i.amount_paid+a.amount>=i.total THEN 'paid' ELSE 'partially_paid' END,updated_at=now() FROM added a WHERE i.id=a.invoice_id RETURNING i.*), logged AS (INSERT INTO public.activity_log(department,event_type,summary,entity_type,entity_id,metadata) SELECT 'finance','payment_recorded','Payment recorded for '||u.invoice_number,'invoice',u.id,jsonb_build_object('amount',a.amount,'currency',u.currency,'status',u.status) FROM updated u JOIN added a ON a.invoice_id=u.id RETURNING id) SELECT updated.*,added.amount AS recorded_amount FROM updated JOIN added ON added.invoice_id=updated.id`;
