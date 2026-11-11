@@ -51,6 +51,7 @@ export async function GET() {
     ]);
     const ready = workerFunctions[0];
     const executionEnabled = process.env.WORKER_EXECUTION_ENABLED === 'true' &&
+      process.env.SCHEDULER_TRIGGER_CONFIGURED === 'true' &&
       Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 32) &&
       getAgencyModelRuntimeReadiness().configured &&
       Boolean(ready?.automation_claim && ready?.automation_complete && ready?.agent_claim && ready?.agent_complete && ready?.scheduler);
@@ -80,6 +81,7 @@ export async function PATCH(req: Request) {
     const db = neon(process.env.DATABASE_URL);
     if (status === 'active') {
       if (process.env.WORKER_EXECUTION_ENABLED !== 'true' ||
+          process.env.SCHEDULER_TRIGGER_CONFIGURED !== 'true' ||
           !process.env.CRON_SECRET || process.env.CRON_SECRET.length < 32 ||
           !getAgencyModelRuntimeReadiness().configured) {
         return NextResponse.json(
