@@ -88,6 +88,10 @@ export async function POST(request: Request) {
   if (!hasValidWorkerSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized worker request.' }, { status: 401 });
   }
+  if (process.env.WORKER_EXECUTION_ENABLED !== 'true' ||
+      process.env.SCHEDULER_TRIGGER_CONFIGURED !== 'true') {
+    return NextResponse.json({ error: 'Worker execution is not activated. No jobs were claimed.' }, { status: 503 });
+  }
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Worker database is not configured.' }, { status: 503 });
   }
