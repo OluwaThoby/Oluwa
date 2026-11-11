@@ -37,8 +37,12 @@ function asObject(value: unknown): Record<string, unknown> {
 
 async function loadEvidence(db: ReturnType<typeof neon>, jobType: string, config: Record<string, unknown>, input: Record<string, unknown>) {
   const suppliedEvidence = asObject(input.evidence);
-  const prospectId = String(input.prospect_id ?? config.prospect_id ?? '');
-  if (!UUID.test(prospectId)) return suppliedEvidence;
+  const rawProspectId = input.prospect_id ?? config.prospect_id;
+  if (rawProspectId != null && String(rawProspectId).trim() && !UUID.test(String(rawProspectId))) {
+    throw new Error('The prospect reference is invalid.');
+  }
+  const prospectId = rawProspectId == null ? '' : String(rawProspectId);
+  if (!prospectId) return suppliedEvidence;
 
   const prospects = await db`
     SELECT id,business_name,website_url,category,city,country,source,source_url,
