@@ -34,11 +34,29 @@ BEGIN
   WHERE idempotency_key = p_idempotency_key;
 
   IF FOUND THEN
+    -- Idempotent retries still have to match the grant's original authority
+    -- scope; an existing key must not bypass client/project/environment checks.
+    SELECT * INTO v_grant
+    FROM public.execution_grants
+    WHERE id = p_grant_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'execution_grant_not_found' USING ERRCODE = 'P0002';
+    END IF;
+
     IF v_existing.grant_id = p_grant_id
        AND v_existing.agent_key = p_agent_key
        AND v_existing.action_type = p_action_type
        AND v_existing.resource_ref = p_resource_ref
-       AND v_existing.request_fingerprint = p_request_fingerprint THEN
+       AND v_existing.request_fingerprint = p_request_fingerprint
+       AND p_action_type = p_permission
+       AND v_grant.agent_key = p_agent_key
+       AND v_grant.client_id IS NOT DISTINCT FROM p_client_id
+       AND v_grant.project_id IS NOT DISTINCT FROM p_project_id
+       AND v_grant.environment = p_environment
+       AND v_grant.resource_scope = p_resource_ref
+       AND p_permission = ANY(v_grant.permissions) THEN
       RETURN jsonb_build_object(
         'action_id', v_existing.id,
         'grant_id', v_existing.grant_id,
@@ -126,3 +144,7 @@ $$;
 
 COMMENT ON FUNCTION public.consume_execution_grant(uuid,text,text,uuid,uuid,text,text,text,text,uuid)
 IS 'Atomically validates exact resource scope and consumes one grant use, records an idempotent request, and never performs the external action itself.';
+
+-- The application database role (normally the function/table owner) can execute
+-- this function; do not expose grant consumption to every database role.
+REVOKE ALL ON FUNCTION public.consume_execution_grant(uuid,text,text,uuid,uuid,text,text,text,text,uuid) FROM PUBLIC;
