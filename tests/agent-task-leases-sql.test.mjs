@@ -40,6 +40,7 @@ test('agent task completion rejects stale leases and records bounded retries', (
     't.lease_token = p_lease_token',
     't.lease_expires_at > now()',
     "WHEN p_status = 'failed' AND t.attempt_count < t.max_attempts THEN 'queued'",
+    'ELSE p_status',
     'RETURNING t.status, t.attempt_count INTO resulting_status, resulting_attempt',
     'worker_task_succeeded',
     'worker_task_attempt_failed',
