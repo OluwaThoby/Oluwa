@@ -22,7 +22,7 @@ test('worker claims are atomic, bounded, and safe against concurrent workers', (
     "r.status = 'queued'",
     "j.status = 'active'",
     'r.attempt_count < j.max_attempts',
-    'r.attempt_count = r.attempt_count + 1',
+    'attempt_count = r.attempt_count + 1',
     'lease_owner = p_worker_id',
     'lease_token = gen_random_uuid()',
     'lease_expires_at = now() + make_interval(secs => p_lease_seconds)',
