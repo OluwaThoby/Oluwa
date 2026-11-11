@@ -41,3 +41,27 @@ test('expired leases are retried only within the job attempt limit', () => {
   assert.match(sql, /lease_token = NULL/i);
   assert.match(sql, /lease_expires_at = NULL/i);
 });
+
+
+test('run completion is guarded by the current, unexpired lease token', () => {
+  for (const contract of [
+    'complete_automation_run',
+    'p_run_id uuid',
+    'p_lease_token uuid',
+    "p_status NOT IN ('succeeded', 'failed')",
+    "status = 'running'",
+    'lease_token = p_lease_token',
+    'lease_expires_at > now()',
+    'finished_at = now()',
+    'lease_token = NULL',
+    'lease_expires_at = NULL',
+    'GET DIAGNOSTICS affected = ROW_COUNT',
+    'RETURN affected = 1',
+    'SECURITY INVOKER',
+    'REVOKE ALL ON FUNCTION public.complete_automation_run',
+    'FROM PUBLIC',
+  ]) assert.ok(sql.includes(contract), 'Missing lease completion contract: ' + contract);
+  assert.match(sql, /octet_length\(p_result::text\) > 65536/i);
+  assert.match(sql, /length\(p_error_message\) > 2000/i);
+  assert.doesNotMatch(sql, /SECURITY DEFINER/i);
+});
