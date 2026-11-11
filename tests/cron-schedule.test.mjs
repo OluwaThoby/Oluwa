@@ -24,7 +24,7 @@ test('uses standard cron OR semantics when both day fields are restricted', () =
 
 test('treats stepped calendar fields as restricted rather than plain wildcards', () => {
   const next = nextCronOccurrence('0 0 */2 * 1', 'UTC', new Date('2026-11-02T00:01:00.000Z'));
-  assert.equal(next.toISOString(), '2026-11-04T00:00:00.000Z');
+  assert.equal(next.toISOString(), '2026-11-03T00:00:00.000Z');
 });
 
 test('rejects invalid expressions, timezones and impossible calendar schedules', () => {
