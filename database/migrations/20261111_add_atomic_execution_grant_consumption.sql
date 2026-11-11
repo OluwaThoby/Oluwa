@@ -35,6 +35,7 @@ BEGIN
 
   IF FOUND THEN
     IF v_existing.grant_id = p_grant_id
+       AND v_existing.agent_key = p_agent_key
        AND v_existing.action_type = p_action_type
        AND v_existing.resource_ref = p_resource_ref
        AND v_existing.request_fingerprint = p_request_fingerprint THEN
@@ -56,6 +57,28 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'execution_grant_not_found' USING ERRCODE = 'P0002';
   END IF;
+
+  -- A concurrent retry may have passed the first lookup before the first
+  -- transaction committed. Recheck after the grant lock to return its record.
+  SELECT * INTO v_existing
+  FROM public.execution_action_log
+  WHERE idempotency_key = p_idempotency_key;
+  IF FOUND THEN
+    IF v_existing.grant_id = p_grant_id
+       AND v_existing.agent_key = p_agent_key
+       AND v_existing.action_type = p_action_type
+       AND v_existing.resource_ref = p_resource_ref
+       AND v_existing.request_fingerprint = p_request_fingerprint THEN
+      RETURN jsonb_build_object(
+        'action_id', v_existing.id,
+        'grant_id', v_existing.grant_id,
+        'status', v_existing.status,
+        'duplicate', true
+      );
+    END IF;
+    RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = '23505';
+  END IF;
+
   IF v_grant.status <> 'active' OR v_grant.revoked_at IS NOT NULL THEN
     RAISE EXCEPTION 'execution_grant_inactive' USING ERRCODE = '42501';
   END IF;
