@@ -134,8 +134,9 @@ BEGIN
 
   UPDATE public.agent_tasks AS t
   SET status = CASE
-        WHEN p_status = 'failed' AND t.attempt_count < t.max_attempts THEN 'queued'
-        ELSE p_status
+        WHEN p_status = 'succeeded' THEN 'completed'
+        WHEN t.attempt_count < t.max_attempts THEN 'queued'
+        ELSE 'failed'
       END,
       output = CASE WHEN p_status = 'succeeded' THEN COALESCE(p_output, '{}'::jsonb) ELSE t.output END,
       error_message = CASE WHEN p_status = 'failed' THEN NULLIF(btrim(p_error_message), '') ELSE NULL END,
