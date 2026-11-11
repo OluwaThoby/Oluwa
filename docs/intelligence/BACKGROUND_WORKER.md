@@ -36,7 +36,9 @@ Neither the automation-run lease migration nor the agent-task lease migration is
 ## Verification completed so far
 
 - The automation-run completion function was installed and inspected on the isolated Neon test branch only. Metadata confirms `SECURITY INVOKER`, no PUBLIC execute privilege, lease-token checking, expiry checking and bounded retries.
-- The agent-task lease migration is prepared with equivalent claim/completion boundaries and is being verified on the isolated branch before any primary-database change.
+- The agent-task lease migration was installed and inspected on the isolated Neon branch only. Metadata confirms `SECURITY INVOKER`, no PUBLIC execute privilege, exclusion of approval-required tasks, and lease-token/expiry checks.
+- Rollback-contained agent-task fixtures verified expired-lease recovery, rejection of a stale token, acceptance of the current token, failure requeue, retry exhaustion, and that a `waiting_approval` task remains untouched.
+- A follow-up query confirmed zero agent-task test fixtures remained after rollback.
 - Rollback-contained SQL fixtures verified that a reclaimed run rejects the old worker token, accepts the new token, and cannot be claimed a second time after completion.
 - A simulated worker crash (expired lease) was recovered on the next claim, with the attempt counter incremented.
 - A failed run was requeued after attempt one and became terminal after reaching its two-attempt limit.
