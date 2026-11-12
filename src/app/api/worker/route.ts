@@ -101,15 +101,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'An approved AI model runtime is not configured. No runs were claimed.' }, { status: 503 });
   }
 
-  let requestedBatch = 1;
-  try {
-    const body = await request.json();
-    if (Number.isInteger(body?.batch_size)) requestedBatch = Number(body.batch_size);
-  } catch {
-    // An empty request body is valid; the worker uses the conservative default.
-  }
   // One sequential inference per invocation keeps worst-case provider latency within the 60s function budget.
-  const batchSize = Math.max(1, Math.min(1, requestedBatch));
+  const batchSize = 1;
   const workerId = `agencyos-worker-${randomUUID()}`;
   const db = neon(process.env.DATABASE_URL);
 
