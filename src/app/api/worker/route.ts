@@ -167,7 +167,7 @@ export async function POST(request: Request) {
             `Assigned specialist agent: ${String(task.agent_key)}.`,
             `Original task type: ${rawTaskType}.`,
             String(task.instructions || ''),
-          ].filter(Boolean).join('\\n'),
+          ].filter(Boolean).join('\n'),
         };
         const evidence = await loadEvidence(db, jobType, config, input);
         const processed = await processAutomationRun({
