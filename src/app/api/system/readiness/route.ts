@@ -84,10 +84,11 @@ export async function GET() {
       key: 'worker',
       name: 'Background worker',
       category: 'Automation',
-      configured: configured(['AGENCYOS_WORKER_URL']) &&
-        configured(['AGENCYOS_WORKER_SECRET']),
+      configured: process.env.WORKER_EXECUTION_ENABLED === 'true' &&
+        process.env.SCHEDULER_TRIGGER_CONFIGURED === 'true' &&
+        configured(['CRON_SECRET']) && configured(['DATABASE_URL']) && modelReady,
       required: false,
-      detail: 'Requires both a worker URL and shared secret. Scheduled jobs remain paused until execution is tested and approved.',
+      detail: 'Worker readiness requires WORKER_EXECUTION_ENABLED=true, SCHEDULER_TRIGGER_CONFIGURED=true, CRON_SECRET, DATABASE_URL and a configured model runtime. GitHub Actions repository secrets AGENCYOS_WORKER_URL and CRON_SECRET must also be present; this endpoint cannot inspect GitHub secrets. No jobs are claimed by this readiness check.',
     },
     {
       key: 'payments',
