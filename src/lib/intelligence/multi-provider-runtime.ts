@@ -3,16 +3,6 @@ import { resolveAgencyProviderForTask } from './runtime-config.mjs';
 
 type Provider = 'gemini' | 'groq' | 'openrouter';
 
-const ROUTES: Record<string, Provider> = {
-  prospect_research: 'gemini',
-  prospect_qualification: 'gemini',
-  report_generation: 'gemini',
-  general: 'gemini',
-  seo_monitoring: 'groq',
-  client_followup: 'groq',
-  invoice_reminder: 'groq',
-};
-
 function required(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required for the selected AI provider.`);
