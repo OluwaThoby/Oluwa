@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createAuthClient } from '@neon/auth/next';
 
 const authClient = createAuthClient();
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get('token') || '';
@@ -44,4 +44,9 @@ export default function ResetPasswordPage() {
     <div className="auth-links"><button type="button" onClick={()=>router.push('/')}>Back to sign in</button></div>
     <div className="auth-foot">Private access · Protected workspace</div>
   </section></main>;
+}
+
+
+export default function ResetPasswordPage() {
+  return <Suspense fallback={<main className="auth-shell"><section className="auth-card"><p className="muted">Loading password recovery…</p></section></main>}><ResetPasswordForm /></Suspense>;
 }
