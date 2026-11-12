@@ -144,3 +144,24 @@ test('known task types honour their own explicit provider route', () => {
     provider: 'openrouter',
   });
 });
+
+
+test('worker readiness uses the same activation gates as the worker route', async () => {
+  const { readFileSync } = await import('node:fs');
+  const readiness = readFileSync('src/app/api/system/readiness/route.ts', 'utf8');
+  const worker = readFileSync('src/app/api/worker/route.ts', 'utf8');
+  for (const flag of ['WORKER_EXECUTION_ENABLED', 'SCHEDULER_TRIGGER_CONFIGURED', 'CRON_SECRET', 'DATABASE_URL']) {
+    assert.ok(worker.includes(flag), `worker route must gate on ${flag}`);
+    assert.ok(readiness.includes(flag), `readiness route must report ${flag}`);
+  }
+  assert.match(readiness, /configured: process\.env\.WORKER_EXECUTION_ENABLED === 'true'/);
+  assert.match(readiness, /modelReady/);
+});
+
+test('scheduler gives the worker time to finish its bounded provider request', () => {
+  const { readFileSync } = require('node:fs');
+  const workflow = readFileSync('.github/workflows/agencyos-scheduler.yml', 'utf8');
+  assert.match(workflow, /--max-time 55/);
+  assert.match(workflow, /AGENCYOS_WORKER_URL/);
+  assert.match(workflow, /CRON_SECRET/);
+});
