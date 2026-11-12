@@ -185,6 +185,7 @@ test('managed authentication exposes complete email, OTP and password-recovery f
   assert.ok(dashboard.includes('authClient.signOut()'));
   assert.ok(dashboard.includes('window.location.assign(\'/\')'));
   assert.ok(reset.includes('if (!token)'));
+  assert.ok(reset.includes('This reset link is missing or invalid.'));
   assert.ok(reset.includes('password !== confirm'));
   assert.match(handler, /auth\.handler\(\)/);
   assert.ok(authServer.includes('NEON_AUTH_BASE_URL'));
