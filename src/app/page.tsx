@@ -37,16 +37,43 @@ export default function Home() {
         const result = await authClient.emailOtp.verifyEmail({ email, otp: verificationCode.trim() });
         if (result.error) throw new Error(result.error.message || 'That verification code is invalid or has expired.');
         const session = await authClient.getSession();
-        if (session.data?.session) { router.push('/dashboard'); router.refresh(); }
-        else { setNotice('Email verified. You can now sign in with your email and password.'); setMode('signin'); }
+        if (session.data?.session) {
+          router.push('/dashboard'); router.refresh();
+        } else if (password.length >= 8) {
+          // Some managed-auth configurations verify the address without
+          // creating a browser session. Re-authenticate only with the password
+          // already entered in this form; never persist it outside component state.
+          const signedIn = await authClient.signIn.email({ email, password });
+          if (signedIn.error) throw new Error(signedIn.error.message || 'Email verified. Please sign in again.');
+          router.push('/dashboard'); router.refresh();
+        } else {
+          setNotice('Email verified. You can now sign in with your email and password.');
+          setMode('signin');
+        }
       } else if (mode === 'forgot') {
         const result = await authClient.requestPasswordReset({ email, redirectTo: `${window.location.origin}/reset-password` });
         if (result.error) throw new Error(result.error.message || 'Unable to send the password reset email.');
         setNotice('If an account exists for this email, password reset instructions have been sent.');
       } else {
-        const result = await authClient.signIn.email({ email, password });
-        if (result.error) throw new Error(result.error.message || 'Invalid email or password.');
-        router.push('/dashboard'); router.refresh();
+        try {
+          const result = await authClient.signIn.email({ email, password });
+          if (result.error) throw new Error(result.error.message || 'Invalid email or password.');
+          router.push('/dashboard'); router.refresh();
+        } catch (signInError) {
+          const message = signInError instanceof Error ? signInError.message : '';
+          if (/email.*not verified|email.*unverified|verification required/i.test(message)) {
+            const sent = await authClient.emailOtp.sendVerificationOtp({
+              email,
+              type: 'email-verification',
+            });
+            if (sent.error) throw new Error(sent.error.message || 'Your email needs verification, but a new code could not be sent.');
+            setVerificationCode('');
+            setMode('verify');
+            setNotice('Your email address is not verified yet. We’ve sent you a fresh verification code.');
+            return;
+          }
+          throw signInError;
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
