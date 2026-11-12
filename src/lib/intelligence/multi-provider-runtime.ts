@@ -1,4 +1,5 @@
 import type { AgencyModelRuntime, AgencyTextRequest, AgencyTextResult } from './model-runtime';
+import { resolveAgencyProviderForTask } from './runtime-config.mjs';
 
 type Provider = 'gemini' | 'groq' | 'openrouter';
 
@@ -123,11 +124,10 @@ export class MultiProviderRuntime implements AgencyModelRuntime {
       throw new Error('The AI request is empty or exceeds the allowed input size.');
     }
 
-    const task = request.taskType || 'general';
-    const routeKey = `AGENCY_ROUTE_${task.toUpperCase()}`;
-    const provider = (process.env[routeKey]?.trim() || ROUTES[task] || 'gemini') as Provider;
+    const route = resolveAgencyProviderForTask(request.taskType || 'general');
+    const provider = route.provider as Provider;
     if (!['gemini', 'groq', 'openrouter'].includes(provider)) {
-      throw new Error(`Unsupported provider in ${routeKey}.`);
+      throw new Error(`Unsupported provider in ${route.routeName}.`);
     }
 
     if (provider === 'gemini') return gemini(request);
