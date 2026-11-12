@@ -1,10 +1,11 @@
 /**
  * Shared, secret-safe configuration check for the selected AgencyOS inference
- * runtime. This reports presence only; it does not prove connectivity or model
- * ownership.
+ * runtime. Presence checks never reveal credentials and do not prove provider
+ * connectivity, quota, model availability, or model ownership.
  */
 export function getAgencyModelRuntimeReadiness(env = process.env) {
   const runtime = (env.AGENCY_MODEL_RUNTIME || 'vercel-gateway').trim();
+
   if (runtime === 'self-hosted') {
     const missing = [
       ['AGENCY_MODEL_ENDPOINT', env.AGENCY_MODEL_ENDPOINT],
@@ -18,6 +19,7 @@ export function getAgencyModelRuntimeReadiness(env = process.env) {
       missing,
     };
   }
+
   if (runtime === 'vercel-gateway') {
     const missing = [];
     if (!env.AI_GATEWAY_MODEL?.trim()) missing.push('AI_GATEWAY_MODEL');
@@ -31,10 +33,68 @@ export function getAgencyModelRuntimeReadiness(env = process.env) {
       missing,
     };
   }
+
+  if (runtime === 'multi-provider') {
+    const tasks = [
+      'prospect_research',
+      'prospect_qualification',
+      'seo_monitoring',
+      'report_generation',
+      'client_followup',
+      'invoice_reminder',
+      'general',
+    ];
+    const defaults = {
+      prospect_research: 'gemini',
+      prospect_qualification: 'gemini',
+      seo_monitoring: 'groq',
+      report_generation: 'gemini',
+      client_followup: 'groq',
+      invoice_reminder: 'groq',
+      general: 'gemini',
+    };
+    const missing = new Set();
+    const routes = {};
+
+    for (const task of tasks) {
+      const routeName = `AGENCY_ROUTE_${task.toUpperCase()}`;
+      const provider = (env[routeName] || defaults[task]).trim();
+      routes[task] = provider;
+      if (provider === 'gemini') {
+        if (!env.GEMINI_API_KEY?.trim()) missing.add('GEMINI_API_KEY');
+        if (!env.GEMINI_MODEL?.trim()) missing.add('GEMINI_MODEL');
+      } else if (provider === 'groq') {
+        if (!env.GROQ_API_KEY?.trim()) missing.add('GROQ_API_KEY');
+        if (!env.GROQ_MODEL?.trim()) missing.add('GROQ_MODEL');
+      } else if (provider === 'openrouter') {
+        if (!env.OPENROUTER_API_KEY?.trim()) missing.add('OPENROUTER_API_KEY');
+        if (!env.OPENROUTER_MODEL?.trim()) missing.add('OPENROUTER_MODEL');
+      } else {
+        missing.add(`${routeName} must be gemini, groq, or openrouter`);
+      }
+    }
+
+    const providers = [...new Set(Object.values(routes))];
+    const models = providers.map((provider) => {
+      if (provider === 'gemini') return `gemini/${env.GEMINI_MODEL?.trim() || 'unconfigured'}`;
+      if (provider === 'groq') return `groq/${env.GROQ_MODEL?.trim() || 'unconfigured'}`;
+      return `openrouter/${env.OPENROUTER_MODEL?.trim() || 'unconfigured'}`;
+    });
+
+    return {
+      runtime,
+      configured: missing.size === 0,
+      model: models.join(', '),
+      providers,
+      routes,
+      missing: [...missing],
+    };
+  }
+
   return {
     runtime,
     configured: false,
     model: null,
-    missing: ['Supported runtime: vercel-gateway or self-hosted'],
+    missing: ['Supported runtime: vercel-gateway, self-hosted, or multi-provider'],
   };
 }
