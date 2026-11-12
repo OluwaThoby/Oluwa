@@ -1,3 +1,27 @@
+const TASK_DEFAULT_PROVIDERS = Object.freeze({
+  prospect_research: 'gemini',
+  prospect_qualification: 'gemini',
+  seo_monitoring: 'groq',
+  report_generation: 'gemini',
+  client_followup: 'groq',
+  invoice_reminder: 'groq',
+  general: 'gemini',
+});
+
+/**
+ * Resolve every task through an explicit task route. Unknown task types use
+ * the general route rather than silently falling back to a different vendor.
+ */
+export function resolveAgencyProviderForTask(taskType = 'general', env = process.env) {
+  const task = Object.hasOwn(TASK_DEFAULT_PROVIDERS, taskType) ? taskType : 'general';
+  const routeName = `AGENCY_ROUTE_${task.toUpperCase()}`;
+  const override = env[routeName];
+  const provider = typeof override === 'string' && override.trim()
+    ? override.trim()
+    : TASK_DEFAULT_PROVIDERS[task];
+  return { task, routeName, provider };
+}
+
 /**
  * Shared, secret-safe configuration check for the selected AgencyOS inference
  * runtime. Presence checks never reveal credentials and do not prove provider
@@ -44,21 +68,11 @@ export function getAgencyModelRuntimeReadiness(env = process.env) {
       'invoice_reminder',
       'general',
     ];
-    const defaults = {
-      prospect_research: 'gemini',
-      prospect_qualification: 'gemini',
-      seo_monitoring: 'groq',
-      report_generation: 'gemini',
-      client_followup: 'groq',
-      invoice_reminder: 'groq',
-      general: 'gemini',
-    };
     const missing = new Set();
     const routes = {};
 
     for (const task of tasks) {
-      const routeName = `AGENCY_ROUTE_${task.toUpperCase()}`;
-      const provider = (env[routeName] || defaults[task]).trim();
+      const { routeName, provider } = resolveAgencyProviderForTask(task, env);
       routes[task] = provider;
       if (provider === 'gemini') {
         if (!env.GEMINI_API_KEY?.trim()) missing.add('GEMINI_API_KEY');
