@@ -92,22 +92,30 @@ export async function POST(
     const claimed = await db`
       WITH claimed AS (
         UPDATE public.agent_tasks
-        SET status = 'running', started_at = NOW(), updated_at = NOW()
+        SET status = 'running',
+            started_at = NOW(),
+            lease_owner = 'manual-owner-execution',
+            lease_token = gen_random_uuid(),
+            lease_expires_at = NOW() + INTERVAL '180 seconds',
+            updated_at = NOW()
         WHERE id = ${id} AND status = 'queued' AND requires_approval = false
-        RETURNING id
+        RETURNING id, lease_token
       ), logged AS (
         INSERT INTO public.agent_task_events (task_id, event_type, details)
         SELECT id, 'execution_started',
-          ${JSON.stringify({ agent: task.agent_key, mode: 'draft_only' })}::jsonb
+          ${JSON.stringify({ agent: task.agent_key, mode: 'draft_only', lease: '180_seconds' })}::jsonb
         FROM claimed
         RETURNING task_id
       )
-      SELECT claimed.id
+      SELECT claimed.id, claimed.lease_token
       FROM claimed JOIN logged ON logged.task_id = claimed.id
     `;
-    if (!(claimed as unknown as Array<{ id: string }>)[0]) {
+    const claim = (claimed as unknown as Array<{ id: string; lease_token: string }>)[0];
+    if (!claim?.id || !claim.lease_token) {
       return NextResponse.json({ error: 'Task was claimed by another worker or is no longer queued.' }, { status: 409 });
     }
+
+    const leaseToken = claim.lease_token;
 
     try {
       // Pull completed work from sibling specialists in the same delegation.
@@ -215,36 +223,58 @@ Safety boundary: this execution is draft-only. Do not send messages, contact pro
       };
       // Persist the deliverable and success event atomically. The UI must
       // never show success without its corresponding audit event.
-      await db`
+      const completed = await db`
         WITH completed AS (
           UPDATE public.agent_tasks
           SET status = 'succeeded', output = ${JSON.stringify(output)}::jsonb,
-              finished_at = NOW(), updated_at = NOW(), error_message = NULL
+              finished_at = NOW(), lease_owner = NULL, lease_token = NULL,
+              lease_expires_at = NULL, updated_at = NOW(), error_message = NULL
           WHERE id = ${id} AND status = 'running'
+            AND lease_token = ${leaseToken}::uuid
+            AND lease_expires_at > NOW()
           RETURNING id
+        ), logged AS (
+          INSERT INTO public.agent_task_events (task_id, event_type, details)
+          SELECT id, 'execution_succeeded',
+            ${JSON.stringify({ model: result.model, mode: 'draft_only' })}::jsonb
+          FROM completed
+          RETURNING task_id
         )
-        INSERT INTO public.agent_task_events (task_id, event_type, details)
-        SELECT id, 'execution_succeeded',
-          ${JSON.stringify({ model: result.model, mode: 'draft_only' })}::jsonb
-        FROM completed
+        SELECT completed.id FROM completed JOIN logged ON logged.task_id = completed.id
       `;
+      if (!(completed as unknown as Array<{ id: string }>)[0]) {
+        return NextResponse.json({
+          error: 'The execution lease expired or was replaced. Its result was not saved.',
+        }, { status: 409 });
+      }
       return NextResponse.json({ taskId: id, status: 'succeeded', ...output });
     } catch (error) {
       const reason = error instanceof Error ? error.message.slice(0, 500) : 'Unknown model error';
       // Record the failure and its audit event as a single atomic change.
-      await db`
+      const failed = await db`
         WITH failed AS (
           UPDATE public.agent_tasks
           SET status = 'failed', error_message = ${reason},
-              finished_at = NOW(), updated_at = NOW()
+              finished_at = NOW(), lease_owner = NULL, lease_token = NULL,
+              lease_expires_at = NULL, updated_at = NOW()
           WHERE id = ${id} AND status = 'running'
+            AND lease_token = ${leaseToken}::uuid
+            AND lease_expires_at > NOW()
           RETURNING id
+        ), logged AS (
+          INSERT INTO public.agent_task_events (task_id, event_type, details)
+          SELECT id, 'execution_failed',
+            ${JSON.stringify({ reason: reason.slice(0, 250) })}::jsonb
+          FROM failed
+          RETURNING task_id
         )
-        INSERT INTO public.agent_task_events (task_id, event_type, details)
-        SELECT id, 'execution_failed',
-          ${JSON.stringify({ reason: reason.slice(0, 250) })}::jsonb
-        FROM failed
+        SELECT failed.id FROM failed JOIN logged ON logged.task_id = failed.id
       `;
+      if (!(failed as unknown as Array<{ id: string }>)[0]) {
+        return NextResponse.json({
+          error: 'The execution lease expired or was replaced. The task state was left to its current owner.',
+        }, { status: 409 });
+      }
       return NextResponse.json({
         error: 'The agent could not complete the task. The failure was recorded.',
       }, { status: 503 });
