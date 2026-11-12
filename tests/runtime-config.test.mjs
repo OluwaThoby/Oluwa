@@ -156,6 +156,7 @@ test('worker readiness uses the same activation gates as the worker route', asyn
   }
   assert.match(readiness, /configured: process\.env\.WORKER_EXECUTION_ENABLED === 'true'/);
   assert.match(readiness, /modelReady/);
+  assert.match(readiness, /CRON_SECRET\.length >= 32/);
 });
 
 test('scheduler gives the worker time to finish its bounded provider request', () => {
