@@ -39,6 +39,7 @@ test('worker materializes due schedules before it claims runs', () => {
   const claimAt = worker.indexOf('SELECT * FROM public.claim_agent_tasks(');
   assert.ok(materializeAt >= 0 && claimAt > materializeAt);
   assert.ok(worker.includes('schedule_materializer_ready'));
+  assert.match(worker, /const batchSize = 1;/);
 });
 
 test('due schedule is materialized once with the next timezone-aware occurrence', async () => {
@@ -83,4 +84,5 @@ test('five-minute scheduler trigger requires both HTTPS worker URL and secret', 
   assert.ok(schedulerWorkflow.includes('CRON_SECRET'));
   assert.ok(schedulerWorkflow.includes('https://*'));
   assert.ok(schedulerWorkflow.includes('/api/worker'));
+  assert.ok(schedulerWorkflow.includes("--data '{\"batch_size\":1}'"));
 });
