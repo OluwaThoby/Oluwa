@@ -4,7 +4,7 @@ import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 async function isOwner() {
   const { data } = await auth.getSession();
@@ -61,6 +61,8 @@ Never send outreach, spend money, make commitments, modify production systems or
 Return a clear plan with: objective, current assumptions, ordered actions, expected deliverables, dependencies, risks, approval gates and measurable definition of done.
 Prefer the smallest useful next action over a vague long-term roadmap.`,
       prompt: goal,
+      taskType: 'general',
+      maxOutputTokens: 2400,
     });
 
     const output = {
@@ -108,16 +110,15 @@ Prefer the smallest useful next action over a vague long-term roadmap.`,
       }
     }
 
-    const message = error instanceof Error ? error.message : '';
-    const status = /gateway|token|authentication|credit|budget|api key|unauthorized/i.test(message)
-      ? 503
-      : 500;
+    const message = error instanceof Error ? error.message : 'Unknown AI runtime error';
+    const providerUnavailable =
+      /HTTP (?:429|5\\d\\d)|quota|rate.?limit|model access|authentication|api key|unauthorized|credential/i.test(message);
+    const status = providerUnavailable ? 503 : 500;
     return NextResponse.json(
       {
-        error:
-          status === 503
-            ? 'The AI engine is not ready. Verify AI Gateway credentials and model access.'
-            : 'The orchestrator could not complete this task. The failure has been recorded when the database was available.',
+        error: providerUnavailable
+          ? `The selected AI provider could not complete the request: ${message.slice(0, 240)}`
+          : 'The orchestrator could not complete this task. The failure has been recorded when the database was available.',
       },
       { status },
     );
