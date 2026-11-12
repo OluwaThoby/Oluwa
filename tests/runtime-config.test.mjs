@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAgencyModelRuntimeReadiness } from '../src/lib/intelligence/runtime-config.mjs';
+import { getAgencyModelRuntimeReadiness, resolveAgencyProviderForTask } from '../src/lib/intelligence/runtime-config.mjs';
 
 test('self-hosted runtime is ready only when endpoint, model and token are present', () => {
   const ready = getAgencyModelRuntimeReadiness({
@@ -112,4 +112,29 @@ test('multi-provider readiness reports only the missing selected provider fields
 
   assert.equal(result.configured, false);
   assert.deepEqual(result.missing, ['OPENROUTER_API_KEY', 'OPENROUTER_MODEL']);
+});
+
+
+test('unknown automation task types inherit the explicit general route', () => {
+  const route = resolveAgencyProviderForTask('website_audit', {
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_WEBSITE_AUDIT: 'gemini',
+  });
+  assert.deepEqual(route, {
+    task: 'general',
+    routeName: 'AGENCY_ROUTE_GENERAL',
+    provider: 'openrouter',
+  });
+});
+
+test('known task types honour their own explicit provider route', () => {
+  const route = resolveAgencyProviderForTask('seo_monitoring', {
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_GENERAL: 'groq',
+  });
+  assert.deepEqual(route, {
+    task: 'seo_monitoring',
+    routeName: 'AGENCY_ROUTE_SEO_MONITORING',
+    provider: 'openrouter',
+  });
 });
