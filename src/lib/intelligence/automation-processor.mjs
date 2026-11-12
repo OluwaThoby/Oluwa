@@ -53,7 +53,7 @@ export function buildAutomationRequest({ jobType, title, config = {}, input = {}
     'If evidence is insufficient, say so and return the smallest useful next step rather than guessing.',
   ].filter(Boolean).join('\\n\\n');
   if (prompt.length > 50000) throw new Error('Automation prompt exceeds the allowed size.');
-  return { system, prompt, maxOutputTokens: 1400 };
+  return { system, prompt, maxOutputTokens: 1400, taskType: jobType };
 }
 
 export async function processAutomationRun({ generate, ...job }) {
