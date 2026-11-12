@@ -35,12 +35,15 @@ function ResetPasswordForm() {
     <div className="brand-mark">A</div><div className="eyebrow">ACCOUNT RECOVERY</div>
     <h1>Choose a new password.</h1><p className="muted">Use at least 8 characters to secure your AgencyOS account.</p>
     {done ? <div className="success" role="status">Your password has been updated. Taking you back to sign in…</div> :
+      <>
+      {!token && <div className="error" role="alert">This reset link is missing or invalid. Request a new one from the sign-in page.</div>}
       <form onSubmit={submit}>
         <label htmlFor="new-password">New password</label><input id="new-password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters"/>
         <label htmlFor="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autoComplete="new-password" minLength={8} required value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Enter it again"/>
         {error && <div className="error" role="alert">{error}</div>}
         <button className="primary-btn" disabled={busy || !token}>{busy?'Updating…':'Update password'}</button>
-      </form>}
+      </form>
+      </>}
     <div className="auth-links"><button type="button" onClick={()=>router.push('/')}>Back to sign in</button></div>
     <div className="auth-foot">Private access · Protected workspace</div>
   </section></main>;
