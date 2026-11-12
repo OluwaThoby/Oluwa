@@ -112,7 +112,7 @@ Prefer the smallest useful next action over a vague long-term roadmap.`,
 
     const message = error instanceof Error ? error.message : 'Unknown AI runtime error';
     const providerUnavailable =
-      /HTTP (?:429|5\\d\\d)|quota|rate.?limit|model access|authentication|api key|unauthorized|credential/i.test(message);
+      /HTTP (?:429|5\d\d)|quota|rate.?limit|model access|authentication|api key|unauthorized|credential/i.test(message);
     const status = providerUnavailable ? 503 : 500;
     return NextResponse.json(
       {
