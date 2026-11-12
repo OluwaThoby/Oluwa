@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { getAgencyModelRuntimeReadiness, resolveAgencyProviderForTask } from '../src/lib/intelligence/runtime-config.mjs';
 
 test('self-hosted runtime is ready only when endpoint, model and token are present', () => {
@@ -147,7 +148,6 @@ test('known task types honour their own explicit provider route', () => {
 
 
 test('worker readiness uses the same activation gates as the worker route', async () => {
-  const { readFileSync } = await import('node:fs');
   const readiness = readFileSync('src/app/api/system/readiness/route.ts', 'utf8');
   const worker = readFileSync('src/app/api/worker/route.ts', 'utf8');
   for (const flag of ['WORKER_EXECUTION_ENABLED', 'SCHEDULER_TRIGGER_CONFIGURED', 'CRON_SECRET', 'DATABASE_URL']) {
@@ -159,7 +159,6 @@ test('worker readiness uses the same activation gates as the worker route', asyn
 });
 
 test('scheduler gives the worker time to finish its bounded provider request', () => {
-  const { readFileSync } = require('node:fs');
   const workflow = readFileSync('.github/workflows/agencyos-scheduler.yml', 'utf8');
   assert.match(workflow, /--max-time 55/);
   assert.match(workflow, /AGENCYOS_WORKER_URL/);
