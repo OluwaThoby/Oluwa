@@ -46,7 +46,7 @@ test('orchestrator execution uses an expiring lease and atomic audit events', ()
   assert.match(route, /WITH created AS \(/);
   assert.match(route, /WITH completed AS \(/);
   assert.match(route, /WITH failed AS \(/);
-  assert.match(route, /FROM completed JOIN logged ON logged\\.task_id = completed\\.id/);
-  assert.match(route, /FROM failed JOIN logged ON logged\\.task_id = failed\\.id/);
+  assert.match(route, /FROM completed JOIN logged ON logged\.task_id = completed\.id/);
+  assert.match(route, /FROM failed JOIN logged ON logged\.task_id = failed\.id/);
   assert.match(route, /execution lease expired or was replaced/);
 });
