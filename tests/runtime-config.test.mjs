@@ -48,3 +48,68 @@ test('unsupported runtime never falls back to a hosted model', () => {
   assert.equal(result.configured, false);
   assert.equal(result.model, null);
 });
+
+
+test('multi-provider readiness honours task-specific routes instead of unused providers', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    OPENROUTER_API_KEY: 'test-openrouter-key',
+    OPENROUTER_MODEL: 'openrouter/free',
+    GEMINI_API_KEY: 'unused-gemini-key',
+    GEMINI_MODEL: 'unused-model',
+    GROQ_API_KEY: 'unused-groq-key',
+    GROQ_MODEL: 'unused-model',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
+  });
+
+  assert.equal(result.configured, true);
+  assert.deepEqual(result.providers, ['openrouter']);
+  assert.ok(Object.values(result.routes).every((provider) => provider === 'openrouter'));
+  assert.deepEqual(result.missing, []);
+  assert.equal(JSON.stringify(result).includes('test-openrouter-key'), false);
+});
+
+test('multi-provider readiness requires only credentials for providers actually selected', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    OPENROUTER_API_KEY: 'test-key',
+    OPENROUTER_MODEL: 'openrouter/free',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
+  });
+
+  assert.equal(result.configured, true);
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.providers, ['openrouter']);
+});
+
+test('multi-provider readiness rejects unsupported provider overrides', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    AGENCY_ROUTE_GENERAL: 'unknown-provider',
+  });
+
+  assert.equal(result.configured, false);
+  assert.ok(result.missing.some((item) => item.includes('AGENCY_ROUTE_GENERAL')));
+});
+
+test('multi-provider readiness reports only the missing selected provider fields', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+  });
+
+  assert.equal(result.configured, false);
+  assert.deepEqual(result.missing, ['OPENROUTER_API_KEY', 'OPENROUTER_MODEL']);
+});
