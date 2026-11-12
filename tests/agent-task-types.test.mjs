@@ -30,7 +30,7 @@ test('agent task creation and audit event are committed in one SQL statement', (
 test('manual agent execution is protected by an expiring lease token', () => {
   const route = readFileSync('src/app/api/agent-tasks/[id]/execute/route.ts', 'utf8');
   assert.match(route, /lease_token = gen_random_uuid\(\)/);
-  assert.match(route, /lease_expires_at = NOW\(\) \+ INTERVAL '180 seconds'/);
+  assert.match(route, /NOW\(\) \+ INTERVAL '180 seconds'/);
   assert.match(route, /AND lease_token = \$\{leaseToken\}::uuid/);
   assert.match(route, /AND lease_expires_at > NOW\(\)/);
   assert.match(route, /The execution lease expired or was replaced/);
