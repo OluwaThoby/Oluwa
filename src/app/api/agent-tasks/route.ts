@@ -92,35 +92,37 @@ export async function POST(request: Request) {
     const status = approvalRequired ? 'waiting_approval' : 'queued';
     const db = neon(process.env.DATABASE_URL);
     const rows = await db`
-      INSERT INTO public.agent_tasks
-        (agent_key, task_type, title, instructions, input, status, priority,
-         requires_approval, requested_by)
-      VALUES
-        (${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
-         ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
-         ${approvalRequired}, 'owner')
-      RETURNING id, agent_key, task_type, title, status, priority,
-                requires_approval, created_at
-    `;
-
-    await db`
-      INSERT INTO public.agent_task_events (task_id, event_type, details)
-      VALUES (
-        ${rows[0].id},
-        'task_created',
-        ${JSON.stringify({
-          source: 'owner_console',
-          status,
-          approvalRequired,
-          classifiedPermissions: actionPolicy.permissions,
-          highestRisk: actionPolicy.highestRisk,
-          financialApprovalRequired: actionPolicy.financialApprovalRequired,
-          executionGranted: false,
-          approvalReason: approvalRequired
-            ? 'Sensitive action detected in submitted task content or explicitly requested.'
-            : null,
-        })}::jsonb
+      WITH created AS (
+        INSERT INTO public.agent_tasks
+          (agent_key, task_type, title, instructions, input, status, priority,
+           requires_approval, requested_by)
+        VALUES
+          (${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
+           ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
+           ${approvalRequired}, 'owner')
+        RETURNING id, agent_key, task_type, title, status, priority,
+                  requires_approval, created_at
+      ), logged AS (
+        INSERT INTO public.agent_task_events (task_id, event_type, details)
+        SELECT id, 'task_created',
+          ${JSON.stringify({
+            source: 'owner_console',
+            status,
+            approvalRequired,
+            classifiedPermissions: actionPolicy.permissions,
+            highestRisk: actionPolicy.highestRisk,
+            financialApprovalRequired: actionPolicy.financialApprovalRequired,
+            executionGranted: false,
+            approvalReason: approvalRequired
+              ? 'Sensitive action detected in submitted task content or explicitly requested.'
+              : null,
+          })}::jsonb
+        FROM created
+        RETURNING task_id
       )
+      SELECT created.*
+      FROM created
+      INNER JOIN logged ON logged.task_id = created.id
     `;
 
     return NextResponse.json(
