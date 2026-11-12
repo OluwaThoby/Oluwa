@@ -10,7 +10,8 @@ import { normalizeAgentTaskType } from '@/lib/intelligence/agent-task-types.mjs'
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+// Leave time for the 45-second provider timeout plus lease completion writes.
+export const maxDuration = 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
