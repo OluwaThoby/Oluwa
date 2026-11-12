@@ -171,6 +171,7 @@ test('managed authentication exposes complete email, OTP and password-recovery f
   const reset = readFileSync('src/app/reset-password/page.tsx', 'utf8');
   const handler = readFileSync('src/app/api/auth/[...path]/route.ts', 'utf8');
   const authServer = readFileSync('src/lib/auth.ts', 'utf8');
+  const dashboard = readFileSync('src/app/dashboard/overview.tsx', 'utf8');
   for (const method of [
     'authClient.signUp.email',
     'authClient.signIn.email',
@@ -180,6 +181,8 @@ test('managed authentication exposes complete email, OTP and password-recovery f
     'authClient.getSession',
   ]) assert.ok(page.includes(method), `missing auth flow: ${method}`);
   assert.ok(reset.includes('authClient.resetPassword'));
+  assert.ok(dashboard.includes('authClient.signOut()'));
+  assert.ok(dashboard.includes('window.location.assign(\'/\')'));
   assert.ok(reset.includes('if (!token)'));
   assert.ok(reset.includes('password !== confirm'));
   assert.match(handler, /auth\.handler\(\)/);
