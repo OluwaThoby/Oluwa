@@ -49,6 +49,10 @@ export async function GET() {
           ? modelReady
             ? 'A model ID and recognised gateway credential are present. This checks configuration only, not live model access.'
             : 'Gateway mode requires an explicitly selected provider/model ID and recognised gateway credential. No model is selected automatically.'
+        : runtime === 'multi-provider'
+          ? modelReady
+            ? 'Multi-provider mode is active. Each task is routed to its configured provider. This checks configuration only, not live provider connectivity or quota.'
+            : `Multi-provider mode is missing configuration: ${runtimeReadiness.missing.join(', ')}.`
           : 'Unsupported runtime selected. No fallback to another model is permitted.',
       model: selectedModel,
     },
