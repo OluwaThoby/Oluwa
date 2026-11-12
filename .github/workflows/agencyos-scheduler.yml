@@ -37,5 +37,5 @@ jobs:
             --request POST \
             --header "Authorization: Bearer ${CRON_SECRET}" \
             --header "Content-Type: application/json" \
-            --data '{"batch_size":3}' \
+            --data '{"batch_size":1}' \
             "${WORKER_URL}/api/worker"
