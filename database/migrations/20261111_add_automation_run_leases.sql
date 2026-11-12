@@ -154,3 +154,5 @@ COMMENT ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text
   IS 'Completes a run only while its lease token is current and unexpired; failed runs are requeued within max_attempts, stale workers are rejected.';
 
 REVOKE ALL ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_automation_runs(text, integer, integer) TO agencyos_app;
+GRANT EXECUTE ON FUNCTION public.complete_automation_run(uuid, uuid, text, jsonb, text) TO agencyos_app;
