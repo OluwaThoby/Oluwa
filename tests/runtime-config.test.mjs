@@ -108,6 +108,12 @@ test('multi-provider readiness reports only the missing selected provider fields
   const result = getAgencyModelRuntimeReadiness({
     AGENCY_MODEL_RUNTIME: 'multi-provider',
     AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
   });
 
   assert.equal(result.configured, false);
