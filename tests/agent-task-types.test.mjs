@@ -39,13 +39,14 @@ test('manual agent execution is protected by an expiring lease token', () => {
 
 test('orchestrator execution uses an expiring lease and atomic audit events', () => {
   const route = readFileSync('src/app/api/orchestrator/route.ts', 'utf8');
-  assert.match(route, /lease_token,\s*gen_random_uuid\(\)/);
+  assert.match(route, /lease_token, lease_expires_at/);
+  assert.match(route, /gen_random_uuid\(\)/);
   assert.match(route, /lease_expires_at > NOW\(\)/);
   assert.match(route, /lease_expires_at = NOW\(\) \+ INTERVAL '180 seconds'/);
   assert.match(route, /WITH created AS \(/);
   assert.match(route, /WITH completed AS \(/);
   assert.match(route, /WITH failed AS \(/);
-  assert.match(route, /INNER JOIN logged ON logged\.task_id = completed\.id/);
-  assert.match(route, /INNER JOIN logged ON logged\.task_id = failed\.id/);
+  assert.match(route, /FROM completed JOIN logged ON logged\\.task_id = completed\\.id/);
+  assert.match(route, /FROM failed JOIN logged ON logged\\.task_id = failed\\.id/);
   assert.match(route, /execution lease expired or was replaced/);
 });
