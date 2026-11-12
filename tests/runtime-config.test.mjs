@@ -164,3 +164,38 @@ test('scheduler gives the worker time to finish its bounded provider request', (
   assert.match(workflow, /AGENCYOS_WORKER_URL/);
   assert.match(workflow, /CRON_SECRET/);
 });
+
+
+test('managed authentication exposes complete email, OTP and password-recovery flows', () => {
+  const page = readFileSync('src/app/page.tsx', 'utf8');
+  const reset = readFileSync('src/app/reset-password/page.tsx', 'utf8');
+  const handler = readFileSync('src/app/api/auth/[...path]/route.ts', 'utf8');
+  const authServer = readFileSync('src/lib/auth.ts', 'utf8');
+  for (const method of [
+    'authClient.signUp.email',
+    'authClient.signIn.email',
+    'authClient.emailOtp.verifyEmail',
+    'authClient.emailOtp.sendVerificationOtp',
+    'authClient.requestPasswordReset',
+    'authClient.getSession',
+  ]) assert.ok(page.includes(method), `missing auth flow: ${method}`);
+  assert.ok(reset.includes('authClient.resetPassword'));
+  assert.ok(reset.includes('if (!token)'));
+  assert.ok(reset.includes('password !== confirm'));
+  assert.match(handler, /auth\.handler\(\)/);
+  assert.ok(authServer.includes('NEON_AUTH_BASE_URL'));
+  assert.ok(authServer.includes('NEON_AUTH_COOKIE_SECRET'));
+});
+
+test('dashboard and privileged system APIs enforce the configured owner identity', () => {
+  const dashboard = readFileSync('src/app/dashboard/page.tsx', 'utf8');
+  const readiness = readFileSync('src/app/api/system/readiness/route.ts', 'utf8');
+  const aiTest = readFileSync('src/app/api/system/ai-test/route.ts', 'utf8');
+  for (const source of [dashboard, readiness, aiTest]) {
+    assert.ok(source.includes('OWNER_EMAIL'));
+    assert.ok(source.includes('toLowerCase()'));
+  }
+  assert.ok(dashboard.includes('if (!user) redirect'));
+  assert.ok(readiness.includes("status: 401"));
+  assert.ok(aiTest.includes("status: 401"));
+});
