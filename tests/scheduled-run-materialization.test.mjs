@@ -86,3 +86,13 @@ test('five-minute scheduler trigger requires both HTTPS worker URL and secret', 
   assert.ok(schedulerWorkflow.includes('/api/worker'));
   assert.ok(schedulerWorkflow.includes("--data '{\"batch_size\":1}'"));
 });
+
+
+test('worker chooses the oldest item across queues and falls back when a competing worker wins', () => {
+  assert.ok(worker.includes('oldest_agent_task'));
+  assert.ok(worker.includes('oldest_automation_run'));
+  assert.ok(worker.includes('preferAgentTasks'));
+  assert.match(worker, /if \(claimedAgentTasks\.length === 0\)/);
+  assert.match(worker, /if \(claimedRuns\.length === 0\)/);
+  assert.match(worker, /const batchSize = 1/);
+});
