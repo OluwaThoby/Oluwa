@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { materializeDueSchedules } from '../src/lib/intelligence/materialize-schedules.mjs';
 
 const migration = readFileSync('database/migrations/20261111_add_scheduled_run_materialization.sql', 'utf8');
+const agentLeaseMigration = readFileSync('database/migrations/20261111_add_agent_task_leases.sql', 'utf8');
+const automationLeaseMigration = readFileSync('database/migrations/20261111_add_automation_run_leases.sql', 'utf8');
 const worker = readFileSync('src/app/api/worker/route.ts', 'utf8');
 const schedulerWorkflow = readFileSync('.github/workflows/agencyos-scheduler.yml', 'utf8');
 
@@ -95,4 +97,24 @@ test('worker chooses the oldest item across queues and falls back when a competi
   assert.match(worker, /if \(claimedAgentTasks\.length === 0\)/);
   assert.match(worker, /if \(claimedRuns\.length === 0\)/);
   assert.match(worker, /const batchSize = 1/);
+});
+
+
+test('worker database functions grant execution only to the application role', () => {
+  for (const [source, functions] of [
+    [agentLeaseMigration, [
+      'claim_agent_tasks(text, integer, integer)',
+      'complete_agent_task(uuid, uuid, text, jsonb, text)',
+    ]],
+    [automationLeaseMigration, [
+      'claim_automation_runs(text, integer, integer)',
+      'complete_automation_run(uuid, uuid, text, jsonb, text)',
+    ]],
+    [migration, ['materialize_scheduled_automation_run(uuid, timestamptz, timestamptz)']],
+  ]) {
+    for (const signature of functions) {
+      assert.ok(source.includes(`GRANT EXECUTE ON FUNCTION public.${signature} TO agencyos_app;`));
+      assert.ok(source.includes(`REVOKE ALL ON FUNCTION public.${signature} FROM PUBLIC;`));
+    }
+  }
 });
