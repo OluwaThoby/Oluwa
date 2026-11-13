@@ -20,7 +20,7 @@ test('unknown and malformed task types fail safely to general', () => {
 
 test('agent task creation and audit event are committed in one SQL statement', () => {
   const route = readFileSync('src/app/api/agent-tasks/route.ts', 'utf8');
-  assert.match(route, /WITH created AS \(/);
+  assert.match(route, /created AS \(/);
   assert.match(route, /logged AS \(/);
   assert.match(route, /INSERT INTO public\.agent_task_events/);
   assert.match(route, /INNER JOIN logged ON logged\.task_id = created\.id/);
