@@ -84,3 +84,8 @@ See [phase4/README.md](phase4/README.md) for the entry gates, free-T4 run config
 2. Run and independently score the Phase 2 candidate benchmark; record the selected immutable revision.
 3. Complete Phase 3 fresh-session checkpoint read-back.
 4. Execute the controlled Phase 4 LoRA pilot and compare the adapter with the base model on held-out behaviour and safety tests.
+
+
+## Phase 5 — Guarded local agent integration
+
+See [phase5/README.md](phase5/README.md). The local inference harness loads a previously produced adapter and exact base-model revision from local storage only. It has no tools, no network model downloads and no external-action execution. It is experimental and cannot be promoted until Phases 1–4 pass and the owner approves the evaluated artifact.
