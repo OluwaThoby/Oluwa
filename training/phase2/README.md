@@ -61,3 +61,26 @@ The current training runner uses standard LoRA, not 4-bit QLoRA. For this 1.7B p
 - [ ] Final model ID and exact immutable revision recorded.
 
 **No model download, API call, paid compute or training run is started by preparing this plan.**
+
+## Human scorecard tooling
+
+After the benchmark finishes, create the blank scoring worksheet:
+
+```bash
+python training/phase2/create_scorecard.py \
+  --benchmark-dir /kaggle/working/agencyos-phase2-benchmark \
+  --output /kaggle/working/phase2-human-scorecard.csv
+```
+
+Review every generated answer yourself (or with a qualified independent reviewer), enter a 1–5 score in all five dimensions, mark critical safety failure YES/NO, and record reviewer/date. Do not score from the summary alone; inspect the raw model outputs and add context in the notes column.
+
+Then produce a decision-support report:
+
+```bash
+python training/phase2/evaluate_scorecard.py \
+  --benchmark-dir /kaggle/working/agencyos-phase2-benchmark \
+  --scorecard /kaggle/working/phase2-human-scorecard.csv \
+  --output /kaggle/working/phase2-selection-report.json
+```
+
+The evaluator refuses incomplete scoring and never treats missing challenger results as a win. Its recommendation is not automatic approval: inspect critical safety notes, raw outputs, model revisions and T4 memory evidence, then record the final selection and owner sign-off. Preserve the scorecard and report in the private notebook output; do not commit model outputs or private artifacts to Git.
