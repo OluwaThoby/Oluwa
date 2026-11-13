@@ -26,12 +26,13 @@ from sft_utils import labels_for_assistant_completion
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-id", required=True)
+    parser.add_argument("--revision", required=True, help="Immutable model commit SHA selected in Phase 2")
     parser.add_argument("--dataset-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--epochs", type=float, default=1)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--grad-accumulation", type=int, default=8)
-    parser.add_argument("--max-length", type=int, default=2048)
+    parser.add_argument("--max-length", type=int, default=512)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--allow-cpu-smoke-test", action="store_true")
     args = parser.parse_args()
@@ -55,7 +56,7 @@ def main() -> None:
             "test": str(dataset_dir / "test.jsonl"),
         },
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_id, revision=args.revision, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -101,6 +102,7 @@ def main() -> None:
     )
     model = AutoModelForCausalLM.from_pretrained(
         args.model_id,
+        revision=args.revision,
         torch_dtype=dtype,
         device_map="auto" if torch.cuda.is_available() else None,
     )
@@ -160,12 +162,16 @@ def main() -> None:
 
     manifest = {
         "model_id": args.model_id,
+        "model_revision": args.revision,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "python": platform.python_version(),
         "torch": torch.__version__,
         "cuda_available": torch.cuda.is_available(),
         "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
         "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.grad_accumulation,
+        "max_length": args.max_length,
         "max_length": args.max_length,
         "learning_rate": args.learning_rate,
         "training_objective": "assistant_completion_only",
