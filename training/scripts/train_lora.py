@@ -56,6 +56,12 @@ def main() -> None:
             "test": str(dataset_dir / "test.jsonl"),
         },
     )
+    approved_count = sum(len(raw[split]) for split in ("train", "validation", "test"))
+    if approved_count < 200:
+        raise SystemExit(
+            f"Training blocked: found {approved_count} approved examples; at least 200 are required."
+        )
+
     tokenizer = AutoTokenizer.from_pretrained(args.model_id, revision=args.revision, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -171,7 +177,6 @@ def main() -> None:
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "gradient_accumulation_steps": args.grad_accumulation,
-        "max_length": args.max_length,
         "max_length": args.max_length,
         "learning_rate": args.learning_rate,
         "training_objective": "assistant_completion_only",
