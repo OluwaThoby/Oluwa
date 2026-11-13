@@ -23,7 +23,7 @@ The 18 existing Phase 1 drafts are pending synthetic curriculum examples. They d
 
 Use the free Kaggle T4 only. No paid GPU, API, subscription or hosted inference fallback is permitted for this pilot.
 
-1. Pin the exact model revision selected in Phase 2.
+1. Pass the exact immutable model commit SHA selected in Phase 2 via the required `--revision` argument. The trainer now refuses to run without it.
 2. Run dataset validation and inspect the complete manifest and quarantine report.
 3. Start with one epoch, batch size 1, gradient accumulation 8, sequence length 512, LoRA rank 16, FP16 on T4.
 4. Save adapter weights and the run manifest to private notebook output/storage only.
