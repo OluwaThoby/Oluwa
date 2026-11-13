@@ -91,15 +91,33 @@ export async function POST(request: Request) {
 
     const status = approvalRequired ? 'waiting_approval' : 'queued';
     const db = neon(process.env.DATABASE_URL);
+    // Serialize requests for the same task type/title, then reuse an identical
+    // queued/running/approval-pending task instead of creating another copy.
+    // Failed and completed tasks are deliberately excluded so owners can retry.
+    const dedupeLockKey = `${taskType || 'general'}\n${title}`;
     const rows = await db`
-      WITH created AS (
+      WITH request_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtextextended(${dedupeLockKey}, 0))
+      ), existing AS MATERIALIZED (
+        SELECT t.id, t.agent_key, t.task_type, t.title, t.status, t.priority,
+               t.requires_approval, t.created_at
+        FROM public.agent_tasks AS t
+        CROSS JOIN request_lock
+        WHERE t.task_type = ${taskType || 'general'}
+          AND t.title = ${title}
+          AND t.instructions = ${instructions}
+          AND t.input = ${JSON.stringify(input)}::jsonb
+          AND t.status IN ('queued', 'running', 'waiting_approval')
+        ORDER BY t.created_at DESC
+        LIMIT 1
+      ), created AS (
         INSERT INTO public.agent_tasks
           (agent_key, task_type, title, instructions, input, status, priority,
            requires_approval, requested_by)
-        VALUES
-          (${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
-           ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
-           ${approvalRequired}, 'owner')
+        SELECT ${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
+               ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
+               ${approvalRequired}, 'owner'
+        WHERE NOT EXISTS (SELECT 1 FROM existing)
         RETURNING id, agent_key, task_type, title, status, priority,
                   requires_approval, created_at
       ), logged AS (
@@ -119,10 +137,14 @@ export async function POST(request: Request) {
           })}::jsonb
         FROM created
         RETURNING task_id
+      ), result AS (
+        SELECT created.*, false AS duplicate
+        FROM created
+        INNER JOIN logged ON logged.task_id = created.id
+        UNION ALL
+        SELECT existing.*, true AS duplicate FROM existing
       )
-      SELECT created.*
-      FROM created
-      INNER JOIN logged ON logged.task_id = created.id
+      SELECT * FROM result LIMIT 1
     `;
 
     return NextResponse.json(
