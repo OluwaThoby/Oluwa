@@ -97,6 +97,30 @@ async function gemini(
 }
 
 /**
+ * Run a synthetic, provider-specific smoke test. This deliberately bypasses
+ * task routing so the owner can verify each configured provider independently.
+ */
+export async function runAgencyProviderSmokeTest(provider: Provider) {
+  const startedAt = Date.now();
+  const request: AgencyTextRequest = {
+    system: 'You are performing a synthetic AgencyOS connectivity check. Do not use tools or external data.',
+    prompt: 'Reply with exactly: AGENCYOS_PROVIDER_OK',
+    maxOutputTokens: 48,
+  };
+  const result = provider === 'gemini'
+    ? await gemini(request)
+    : await openAICompatible(provider, request);
+  return {
+    provider,
+    model: result.model,
+    latencyMs: Date.now() - startedAt,
+    response: result.text,
+    success: result.text.includes('AGENCYOS_PROVIDER_OK'),
+    testData: 'synthetic_only' as const,
+  };
+}
+
+/**
  * Explicit task router. No automatic cross-provider fallback: a failed request
  * stays failed rather than silently sending client data to another vendor.
  * Route overrides allow benchmark results to change assignments without code edits.
