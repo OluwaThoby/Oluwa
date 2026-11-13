@@ -1,11 +1,6 @@
 const SUPPORTED_JOB_TYPES = new Set([
-  'prospect_research',
-  'prospect_qualification',
-  'seo_monitoring',
-  'report_generation',
-  'client_followup',
-  'invoice_reminder',
-  'general',
+  'prospect_research', 'prospect_qualification', 'seo_monitoring',
+  'report_generation', 'client_followup', 'invoice_reminder', 'general',
 ]);
 
 const JOB_GUIDANCE = {
@@ -24,6 +19,30 @@ function safeJson(value, maxLength = 16000) {
   catch { throw new Error('Automation input must be valid JSON data.'); }
   if (serialized.length > maxLength) throw new Error('Automation input exceeds the allowed size.');
   return serialized;
+}
+
+/**
+ * Deterministic output checks are deliberately conservative. They flag work
+ * for owner review; they never claim to prove factual correctness.
+ */
+export function verifyAutomationOutput(value) {
+  const output = typeof value === 'string' ? value.trim() : '';
+  const checks = [
+    { key: 'non_empty', passed: output.length > 0, detail: 'A non-empty response was returned.' },
+    { key: 'minimum_substance', passed: output.length >= 120, detail: 'Response contains at least 120 characters.' },
+    { key: 'evidence_boundary', passed: /evidence|source|provided|unknown|assumption/i.test(output), detail: 'Response acknowledges evidence, sources, unknowns or assumptions.' },
+    { key: 'next_steps', passed: /next steps?|recommended actions?|recommendations?|follow[- ]?up/i.test(output), detail: 'Response includes a next-step or recommendation signal.' },
+    { key: 'external_action_claim', passed: !/\b(i have|we have|successfully)\s+(sent|emailed|contacted|published|deployed|purchased|paid|transferred|deleted)\b/i.test(output), detail: 'No obvious claim of a completed external action was detected.' },
+  ];
+  const failed = checks.filter((check) => !check.passed).map((check) => check.key);
+  return {
+    status: failed.length === 0 ? 'passed' : 'needs_owner_review',
+    automated: true,
+    factualAccuracyVerified: false,
+    failedChecks: failed,
+    checks,
+    disclaimer: 'Automated structural checks only; this does not verify factual accuracy or replace owner review.',
+  };
 }
 
 export function buildAutomationRequest({ jobType, title, config = {}, input = {}, evidence = null }) {
@@ -63,8 +82,10 @@ export async function processAutomationRun({ generate, ...job }) {
   if (!generated || typeof generated.text !== 'string' || !generated.text.trim()) {
     throw new Error('The AI agent returned no usable output.');
   }
+  const output = generated.text.slice(0, 24000);
   return {
-    output: generated.text.slice(0, 24000),
+    output,
+    verification: verifyAutomationOutput(output),
     model: typeof generated.model === 'string' ? generated.model.slice(0, 160) : 'configured-runtime',
     usage: generated.usage ?? null,
     processedAt: new Date().toISOString(),

@@ -34,7 +34,7 @@ export default function SystemReadiness() {
   const [data, setData] = useState<Readiness | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [aiTesting, setAiTesting] = useState(false);
+  const [aiTesting, setAiTesting] = useState<string | null>(null);
   const [aiTest, setAiTest] = useState('');
 
   const load = useCallback(async () => {
@@ -54,16 +54,20 @@ export default function SystemReadiness() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function testAi() {
-    setAiTesting(true); setAiTest('');
+  async function testProvider(provider: 'gemini' | 'groq' | 'openrouter') {
+    setAiTesting(provider); setAiTest('');
     try {
-      const response = await fetch('/api/system/ai-test', { method: 'POST' });
+      const response = await fetch('/api/system/provider-test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      });
       const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'The AI provider did not return a usable response.');
-      setAiTest('Connected successfully · ' + result.model + ' · ' + result.response);
+      if (!response.ok || !result.success) throw new Error(result.error || 'The provider did not return a usable response.');
+      setAiTest('Connected · ' + result.model + ' · ' + result.latencyMs + ' ms · ' + result.response);
     } catch (err) {
-      setAiTest(err instanceof Error ? 'Test failed: ' + err.message : 'AI connection test failed.');
-    } finally { setAiTesting(false); }
+      setAiTest(err instanceof Error ? 'Test failed: ' + err.message : 'Provider test failed.');
+    } finally { setAiTesting(null); }
   }
 
   const ready = data?.checks.filter((item) => item.configured).length ?? 0;
@@ -92,7 +96,7 @@ export default function SystemReadiness() {
         <div className="metric"><span className="muted">Execution safety</span><strong>Guarded</strong><span className="secondary">Approvals remain in place</span></div>
       </section>
       <section className="panel">
-        <div className="panel-head"><div><h2>Integration readiness</h2><div className="sub">Missing integrations are shown plainly. Nothing is enabled or purchased from this screen.</div></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="btn" onClick={testAi} disabled={aiTesting}>{aiTesting ? "Testing AI…" : "Test AI connection"}</button><button className="btn" onClick={load} disabled={loading}>↻ Refresh</button></div></div>
+        <div className="panel-head"><div><h2>Integration readiness</h2><div className="sub">Missing integrations are shown plainly. Nothing is enabled or purchased from this screen.</div></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="btn" onClick={() => testProvider('gemini')} disabled={Boolean(aiTesting)}>{aiTesting === 'gemini' ? 'Testing Gemini…' : 'Test Gemini'}</button><button className="btn" onClick={() => testProvider('groq')} disabled={Boolean(aiTesting)}>{aiTesting === 'groq' ? 'Testing Groq…' : 'Test Groq'}</button><button className="btn" onClick={() => testProvider('openrouter')} disabled={Boolean(aiTesting)}>{aiTesting === 'openrouter' ? 'Testing OpenRouter…' : 'Test OpenRouter'}</button><button className="btn" onClick={load} disabled={loading}>↻ Refresh</button></div></div>
         {error && <p className="error">{error}</p>}
         {aiTest && <p className={aiTest.startsWith("Connected") ? "notice" : "error"} role="status">{aiTest}</p>}
         {loading ? <p className="empty">Checking server configuration…</p> : <div className="table-wrap"><table>

@@ -204,3 +204,20 @@ test('dashboard and privileged system APIs enforce the configured owner identity
   assert.ok(readiness.includes("status: 401"));
   assert.ok(aiTest.includes("status: 401"));
 });
+
+
+test('provider smoke-test endpoint is owner-only, synthetic-only and opt-in', () => {
+  const route = readFileSync('src/app/api/system/provider-test/route.ts', 'utf8');
+  const runtime = readFileSync('src/lib/intelligence/multi-provider-runtime.ts', 'utf8');
+  const dashboard = readFileSync('src/app/dashboard/system/system-readiness.tsx', 'utf8');
+  assert.ok(route.includes('OWNER_EMAIL'));
+  assert.ok(route.includes("AGENCY_PROVIDER_TESTS_ENABLED !== 'true'"));
+  assert.ok(route.includes("testData: 'synthetic_only'"));
+  assert.ok(route.includes("provider !== 'gemini' && provider !== 'groq' && provider !== 'openrouter'"));
+  assert.ok(runtime.includes('runAgencyProviderSmokeTest'));
+  assert.ok(runtime.includes('AGENCYOS_PROVIDER_OK'));
+  assert.ok(dashboard.includes('/api/system/provider-test'));
+  for (const provider of ['gemini', 'groq', 'openrouter']) {
+    assert.ok(dashboard.includes(`testProvider('${provider}')`));
+  }
+});
