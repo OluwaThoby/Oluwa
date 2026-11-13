@@ -1,0 +1,15 @@
+# Private training material — never commit these files
+data/
+datasets/
+checkpoints/
+outputs/
+adapters/
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.log
+.env
+.env.*
