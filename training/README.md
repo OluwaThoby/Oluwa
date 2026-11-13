@@ -2,7 +2,11 @@
 
 This directory is the first executable training workspace for an independent AgencyOS student model.
 
-## Phase 1 curriculum status\n\nSee [`curriculum/PHASE1_DATASET_PLAN.md`](curriculum/PHASE1_DATASET_PLAN.md). An 18-record draft pack is in `data/phase1-draft-examples.jsonl`. These are synthetic, unreviewed drafts and are **not eligible for training**. Provider/model terms and every target response require real human review before any record is marked approved. The approved dataset gate remains closed.\n\n## What it does now
+## Phase 1 curriculum status
+
+See [`curriculum/PHASE1_DATASET_PLAN.md`](curriculum/PHASE1_DATASET_PLAN.md). An 18-record draft pack is in `data/phase1-draft-examples.jsonl`. These are synthetic, unreviewed drafts and are **not eligible for training**. Provider/model terms and every target response require real human review before any record is marked approved. The approved dataset gate remains closed.
+
+## What it does now
 
 - Validates teacher demonstrations and their provenance.
 - Builds deterministic train/validation/test splits by task group to reduce leakage.
@@ -42,7 +46,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-For Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`.
+For Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1`.
 
 ## 1. Validate and split the dataset
 
