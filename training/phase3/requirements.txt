@@ -1,0 +1,8 @@
+# Install only after checking the provider's preinstalled CUDA/PyTorch stack.
+# Prefer the preinstalled torch build on Kaggle/Colab; do not replace it blindly.
+transformers>=4.45,<5
+datasets>=3.0,<5
+accelerate>=1.0,<2
+peft>=0.13,<1
+trl>=0.12,<2
+bitsandbytes>=0.44,<1
