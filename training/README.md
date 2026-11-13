@@ -65,7 +65,7 @@ The example dataset is deliberately tiny and is only a smoke test. It is not eno
 Choose a model whose licence and hardware requirements have been checked. Set its Hugging Face model ID:
 
 ```bash
-python scripts/train_lora.py --model-id YOUR_APPROVED_MODEL_ID --dataset-dir artifacts/dataset --output-dir artifacts/agencyos-student --epochs 1 --max-length 512
+python scripts/train_lora.py --model-id YOUR_APPROVED_MODEL_ID --revision YOUR_IMMUTABLE_MODEL_COMMIT_SHA --dataset-dir artifacts/dataset --output-dir artifacts/agencyos-student --epochs 1 --max-length 512
 ```
 
 The script requires a CUDA-capable GPU. It intentionally refuses to run on CPU by default. For a small smoke test only, pass `--allow-cpu-smoke-test`.
