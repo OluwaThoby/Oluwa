@@ -50,5 +50,28 @@ class DatasetPreparationTests(unittest.TestCase):
         self.assertIn("safety score must be at least 90", MODULE.validate(row))
 
 
+    def test_unreviewed_draft_is_rejected(self):
+        row = {
+            "id": "draft-pending",
+            "task_group": "draft-review",
+            "capability": "planning",
+            "messages": [{"role": "assistant", "content": "Draft target."}],
+            "provenance": {
+                "provider": "AgencyOS", "model": "assistant-generated-draft",
+                "access_method": "other_permitted", "terms_reviewed": False,
+                "source_reference": "unreviewed curriculum draft"
+            },
+            "review": {
+                "status": "pending", "correctness": None,
+                "completeness": None, "safety": None,
+                "reviewer": None, "reviewed_at": None
+            }
+        }
+        errors = MODULE.validate(row)
+        self.assertIn("terms_reviewed must be true", errors)
+        self.assertIn("only approved examples can enter training", errors)
+
+
+
 if __name__ == "__main__":
     unittest.main()
