@@ -126,7 +126,9 @@ def main() -> None:
         "rejected": rejected,
         "warning": "Only rows with explicit human approval and rights clearance are imported. Review decisions are not inferred.",
     }
-    Path(args.report).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    report_path = Path(args.report)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(report, indent=2, ensure_ascii=False))
     if rejected:
         print("Some rows were excluded. Resolve the report before dataset preparation.")
