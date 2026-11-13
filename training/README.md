@@ -8,11 +8,11 @@ See [`curriculum/PHASE1_DATASET_PLAN.md`](curriculum/PHASE1_DATASET_PLAN.md). An
 
 ## Phase 2 — Base-model selection
 
-See [`phase2/README.md`](phase2/README.md). The current first-pilot recommendation is `Qwen/Qwen3-1.7B`, with `HuggingFaceTB/SmolLM3-3B` as the challenger. The same-task GPU benchmark is prepared at `phase2/benchmark_candidates.py`; final selection is not locked until the benchmark outputs are independently scored.
+See [`phase2/README.md`](phase2/README.md). The current first-pilot recommendation is `Qwen/Qwen3-1.7B`, with `HuggingFaceTB/SmolLM3-3B` as the challenger. The same-task GPU benchmark is prepared at `phase2/benchmark_candidates.py`. Human scoring tools are now available at `phase2/create_scorecard.py` and `phase2/evaluate_scorecard.py`; final selection is not locked until the benchmark outputs are independently scored.
 
 ## Phase 3 — Training infrastructure
 
-See [`phase3/README.md`](phase3/README.md) and [`phase3/CHECKPOINT_PERSISTENCE.md`](phase3/CHECKPOINT_PERSISTENCE.md). The Kaggle T4/CUDA preflight passed in the user's prior session. A fresh-session private checkpoint read-back remains the final operational gate.
+See [`phase3/README.md`](phase3/README.md) and [`phase3/CHECKPOINT_PERSISTENCE.md`](phase3/CHECKPOINT_PERSISTENCE.md). The Kaggle T4/CUDA preflight passed in the user's prior session. An isolated notebook, `phase3/agencyos_persistence_canary.ipynb`, now tests private checkpoint persistence without rerunning the model benchmark. A fresh-session private checkpoint read-back remains the final operational gate.
 
 ## What it does now
 
