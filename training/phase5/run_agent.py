@@ -9,9 +9,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 SYSTEM_POLICY = """You are the experimental AgencyOS Intelligence student.
 Work as a careful agency operations assistant. Be useful, concrete and concise.
@@ -86,6 +83,10 @@ def main() -> None:
         raise SystemExit("Prompt cannot be empty.")
     if not 32 <= args.max_new_tokens <= 1024:
         raise SystemExit("--max-new-tokens must be between 32 and 1024.")
+
+    import torch
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_id, revision=args.revision, use_fast=True,
