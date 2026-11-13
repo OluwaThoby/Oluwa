@@ -21,7 +21,7 @@
 - [ ] Record final model ID and immutable revision after benchmark.
 - [ ] Run first controlled GPU fine-tune.
 - [ ] Compare base model and adapter on held-out evaluations.
-- [ ] Integrate the approved student behind a read-only AgencyOS tool boundary.
+- [x] Implement a local-only Phase 5 inference harness with structured outputs and an application-enforced no-tools boundary.\n- [ ] Evaluate a real trained adapter against its base model and behavioural/safety suite.\n- [ ] Integrate only an approved student behind a separately enforced read-only AgencyOS tool boundary.
 
 ## Release gates
 
