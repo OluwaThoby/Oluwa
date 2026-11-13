@@ -10,8 +10,11 @@
 - [x] LoRA fine-tuning runner.
 - [x] Local adapter inference script.
 - [x] Model card template.
-- [ ] Run automated Python tests in a compatible environment.\n- [x] Kaggle Tesla T4/CUDA hardware preflight passed (user-run, 13 Nov 2026).\n- [ ] Verify private checkpoint read-back after restarting the Kaggle session.
-- [x] Prepare Phase 1 curriculum taxonomy and 18-record draft pack (human review and terms approval still pending).\n- [ ] Expand the approved dataset beyond smoke-test examples (drafts do not count).
+- [ ] Run automated Python tests in a compatible environment.
+- [x] Kaggle Tesla T4/CUDA hardware preflight passed (user-run, 13 Nov 2026).
+- [ ] Verify private checkpoint read-back after restarting the Kaggle session.
+- [x] Prepare Phase 1 curriculum taxonomy and 18-record draft pack (human review and terms approval still pending).
+- [ ] Expand the approved dataset beyond smoke-test examples (drafts do not count).
 - [ ] Benchmark candidate base models on identical held-out tasks.
 - [ ] Select base model after licence and hardware review.
 - [ ] Run first controlled GPU fine-tune.
