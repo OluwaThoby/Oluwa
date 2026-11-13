@@ -74,11 +74,13 @@ The script requires a CUDA-capable GPU. It intentionally refuses to run on CPU b
 
 The first evaluation step is a reproducible held-out loss/perplexity check, not proof of agent competence. Full promotion requires the AgencyOS behavioural evaluation suite, independent scoring, safety tests and real tool-use tests. Never let the model under test grade itself.
 
+## Phase 4 — controlled fine-tuning
+
+See [phase4/README.md](phase4/README.md) for the entry gates, free-T4 run configuration, stop conditions and promotion rules. The trainer is implemented, but Phase 4 is **not started**: no approved dataset, benchmark-locked model or fresh-session persistence proof has been recorded yet. Do not launch training until all gates pass.
+
 ## Next engineering milestones
 
-1. Grow a legally permitted, human-reviewed dataset across AgencyOS capabilities.
-2. Run the prepared Phase 2 benchmark and lock the model only after independent scoring.
-3. Complete the Phase 3 fresh-session checkpoint read-back.
-4. Run LoRA fine-tuning on controlled free GPU infrastructure.
-5. Compare base vs adapter on held-out tests and safety regressions.
-6. Only then connect the student model to read-only AgencyOS tools.
+1. Complete genuine human review and provenance/terms checks for the Phase 1 dataset.
+2. Run and independently score the Phase 2 candidate benchmark; record the selected immutable revision.
+3. Complete Phase 3 fresh-session checkpoint read-back.
+4. Execute the controlled Phase 4 LoRA pilot and compare the adapter with the base model on held-out behaviour and safety tests.
