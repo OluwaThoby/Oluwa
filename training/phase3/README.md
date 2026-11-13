@@ -1,6 +1,6 @@
 # Phase 3 — Secure Training Infrastructure
 
-**Status:** Infrastructure specification and preflight tooling prepared. No GPU session has been started and no paid compute has been used.
+**Status:** Kaggle GPU hardware preflight passed on 13 November 2026. Local scratch-storage write/delete and cross-session checkpoint persistence are not yet verified. No model download, training run, paid compute, or API call has been started.
 
 ## Objective
 
@@ -17,7 +17,7 @@ Prepare a repeatable, low-cost, security-conscious environment for the first Age
 | Training method | QLoRA (4-bit NF4) with LoRA adapters; no full fine-tuning |
 | Initial model size | Prefer 1B–3B parameters for the first compatibility run |
 | Stretch target | 7B only if the selected model, sequence length and measured peak VRAM fit safely |
-| Runtime | Python 3.11; use the accelerator provider's preinstalled CUDA/PyTorch stack |
+| Runtime | Python 3.10+; retain the accelerator provider's preinstalled CUDA/PyTorch stack |
 | Data | Sanitized, reviewed AgencyOS examples; synthetic/public data for environment tests |
 | Persistence | Save only approved adapter/checkpoint artifacts to a private location; never commit datasets, credentials, checkpoints or model weights to this repository |
 
@@ -78,10 +78,10 @@ Kaggle's free GPU capacity is limited and may queue. Quotas and availability can
 
 ## Preflight acceptance checklist
 
-Run `python preflight.py` inside the selected GPU notebook.
+Run `python preflight.py` inside the selected GPU notebook. The script accepts the current Kaggle Python 3.13 runtime and checks CUDA, VRAM, RAM (when psutil is available), local scratch capacity, and a temporary write/delete canary.
 
 A passing environment must:
-1. Report Python 3.10 or 3.11 (3.11 preferred).
+1. Report Python 3.10 or newer and import the preinstalled PyTorch stack successfully.
 2. Import PyTorch successfully.
 3. Detect CUDA and at least one NVIDIA GPU.
 4. Report at least 12 GB total VRAM on the selected device; 16 GB is preferred.
@@ -112,3 +112,26 @@ No GPU session, model download, dataset upload, training run, or paid service is
 - [Hugging Face TRL SFTTrainer](https://huggingface.co/docs/trl/sft_trainer)
 - [Hugging Face PEFT / QLoRA integration](https://huggingface.co/docs/trl/peft_integration)
 - [bitsandbytes documentation](https://huggingface.co/docs/bitsandbytes/index)
+
+
+## Actual Kaggle preflight evidence (user-run)
+
+On 13 November 2026, the user ran the Kaggle notebook checks and reported:
+- Python 3.13.16
+- PyTorch 2.11.0+cu130
+- CUDA available
+- NVIDIA Tesla T4, 14.56 GB reported GPU memory
+- CUDA allocation test passed
+- System RAM 31.35 GB total / 29.71 GB available
+
+This confirms a working T4/CUDA allocation at the time of that session. The original repository preflight incorrectly rejected Python 3.13; the updated script now accepts Python 3.10+ and matches the observed Kaggle runtime.
+
+## Remaining operational acceptance
+
+The following must still be run in the private Kaggle notebook:
+1. Run the updated `agencyos_gpu_preflight.ipynb` (or `preflight.py`) and capture the full output, including scratch write/delete.
+2. Choose the intended private checkpoint location. A temporary write/delete test only proves local scratch access.
+3. Save a harmless private canary file to the intended checkpoint location, restart the notebook session, and read the canary back. Delete it after verification.
+4. Keep the notebook private and stop the GPU session after testing.
+
+**Do not call Phase 3 fully closed until cross-session private checkpoint read-back succeeds.** The T4 hardware gate has passed; persistence has not.
