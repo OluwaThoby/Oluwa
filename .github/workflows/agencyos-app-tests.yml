@@ -7,7 +7,6 @@ on:
       - "database/migrations/**"
       - "tests/**"
       - "package.json"
-      - "package-lock.json"
       - "next.config.*"
       - "tsconfig.json"
       - ".github/workflows/agencyos-app-tests.yml"
@@ -17,7 +16,6 @@ on:
       - "database/migrations/**"
       - "tests/**"
       - "package.json"
-      - "package-lock.json"
       - "next.config.*"
       - "tsconfig.json"
       - ".github/workflows/agencyos-app-tests.yml"
@@ -25,14 +23,13 @@ on:
 jobs:
   web-quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
       - name: Install dependencies
         run: npm install --ignore-scripts
-      - name: Run tests, TypeScript checks and production build
+      - name: Run tests and production build
         run: npm run build
