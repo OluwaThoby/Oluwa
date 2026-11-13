@@ -48,3 +48,18 @@ Inspect the manifest and rejected records. Do not train if any intended example 
 ## Human review queue
 
 A row-by-row review worksheet is available at `training/data/phase1-review-queue.csv`. It contains the 18 current drafts, their prompts and proposed responses, plus blank fields for a real reviewer to record a decision, identity, date, scores, corrections and provenance/terms checks. Every row is pre-labelled **SYNTHETIC DRAFT — NOT APPROVED** and **PENDING**. Completing the worksheet is a review aid only; it does not automatically approve or import examples into training. After genuine review and rewriting where needed, transfer only eligible, rights-cleared examples into the approved JSONL source and run the validator.
+
+## Safe review-queue import
+
+The review CSV now includes separate fields for the final approved assistant response and its provenance/rights basis. Do not copy the proposed draft into the approved-response field without reviewing and rewriting it where needed. The importer excludes every row unless the decision is `APPROVED`, rights status is exactly `CLEARED`, reviewer/date/scores are present, safety is at least 90, and the provenance fields use a supported access method.
+
+After completing real reviews, run:
+
+```bash
+python training/scripts/import_review_queue.py \
+  --input training/data/phase1-review-queue.csv \
+  --output training/data/approved-traces.jsonl \
+  --report artifacts/phase1-import-report.json
+```
+
+Then run the existing dataset validator against `training/data/approved-traces.jsonl`. Inspect both the import report and the validator's rejected report. An empty approved output is an expected safe result while the queue remains pending; never weaken the checks to force examples through.
