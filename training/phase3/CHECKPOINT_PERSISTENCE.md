@@ -4,7 +4,7 @@ The Kaggle GPU and CUDA allocation test already passed on the user's T4 session.
 
 ## Safe canary procedure (no model or customer data)
 
-1. Open the existing private AgencyOS Kaggle notebook. Keep the notebook private.
+1. Open `agencyos_persistence_canary.ipynb` from `training/phase3/` in Kaggle (or import the notebook file). Keep it private. This isolated notebook avoids rerunning the Phase 2 model downloads just to test storage.
 2. Confirm the accelerator is GPU, then run the updated preflight.
 3. Create a tiny text canary in the notebook's output directory:
    ```python
