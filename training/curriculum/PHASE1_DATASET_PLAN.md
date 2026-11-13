@@ -44,3 +44,7 @@ Inspect the manifest and rejected records. Do not train if any intended example 
 
 ## Phase 1 status
 **Curriculum and draft pack prepared; final approval is pending human review and provenance/terms checks.** The 18 generated drafts are not counted as approved training examples. Phase 1 cannot be declared fully closed until a meaningful reviewed dataset is accepted by the validator.
+
+## Human review queue
+
+A row-by-row review worksheet is available at `training/data/phase1-review-queue.csv`. It contains the 18 current drafts, their prompts and proposed responses, plus blank fields for a real reviewer to record a decision, identity, date, scores, corrections and provenance/terms checks. Every row is pre-labelled **SYNTHETIC DRAFT — NOT APPROVED** and **PENDING**. Completing the worksheet is a review aid only; it does not automatically approve or import examples into training. After genuine review and rewriting where needed, transfer only eligible, rights-cleared examples into the approved JSONL source and run the validator.
