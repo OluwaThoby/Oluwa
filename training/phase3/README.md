@@ -77,7 +77,7 @@ This confirms a working T4/CUDA allocation at that time. It does not prove the G
 
 ## Remaining operational acceptance
 
-Follow [CHECKPOINT_PERSISTENCE.md](CHECKPOINT_PERSISTENCE.md) to:
+Use the isolated [persistence canary notebook](agencyos_persistence_canary.ipynb) and follow [CHECKPOINT_PERSISTENCE.md](CHECKPOINT_PERSISTENCE.md) to:
 1. Create a harmless canary file in `/kaggle/working`.
 2. Save a private notebook version so the output is persisted.
 3. Start a fresh session and attach the previous private notebook output.
