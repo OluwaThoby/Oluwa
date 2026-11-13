@@ -50,3 +50,13 @@ test('orchestrator execution uses an expiring lease and atomic audit events', ()
   assert.match(route, /FROM failed JOIN logged ON logged\.task_id = failed\.id/);
   assert.match(route, /execution lease expired or was replaced/);
 });
+
+test('agent task creation reuses identical active tasks instead of queuing duplicates', () => {
+  const route = readFileSync('src/app/api/agent-tasks/route.ts', 'utf8');
+  assert.match(route, /pg_advisory_xact_lock\(hashtextextended\(/);
+  assert.match(route, /existing AS MATERIALIZED/);
+  assert.match(route, /t\.status IN \('queued', 'running', 'waiting_approval'\)/);
+  assert.match(route, /t\.input = \$\{JSON\.stringify\(input\)\}::jsonb/);
+  assert.match(route, /UNION ALL\s+SELECT existing\.\*, true AS duplicate FROM existing/);
+  assert.match(route, /status: duplicate \? 200 : 201/);
+});
