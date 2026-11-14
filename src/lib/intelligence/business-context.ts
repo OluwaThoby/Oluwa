@@ -1,11 +1,11 @@
-import type { NeonQueryFunction } from '@neondatabase/serverless';
+
 
 /**
  * Load the one owner-maintained business profile shared by every agent.
  * Only fields explicitly confirmed by the owner are exposed as verified facts.
  * Unconfirmed values remain visible as unverified inputs, never as facts.
  */
-export async function loadAgencyBusinessContext(db: NeonQueryFunction<false, false>) {
+export async function loadAgencyBusinessContext(db: any) {
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
   if (!ownerEmail) {
     return { profileStatus: 'unavailable', profileVersion: null, verifiedFacts: {}, unverifiedInputs: {} };
