@@ -70,20 +70,29 @@ async function gemini(
   const key = required('GEMINI_API_KEY');
   const model = required('GEMINI_MODEL');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'x-goog-api-key': key,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: request.system }] },
-      contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens(request), temperature: 0.2 },
-    }),
-    signal: AbortSignal.timeout(45000),
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': key,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: request.system }] },
+        contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens(request), temperature: 0.2 },
+      }),
+      // Keep this below the route's 60-second execution limit.
+      signal: AbortSignal.timeout(52000),
+      cache: 'no-store',
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Error('Gemini did not respond within 52 seconds. This is a provider/network timeout, not an API-key rejection. Retry once; if it repeats, switch the Gemini model or use another provider.');
+    }
+    throw error;
+  }
   if (!response.ok) {
     // Preserve Google's structured error message so the dashboard can distinguish
     // service overload, quota, API access and model errors instead of hiding them.
