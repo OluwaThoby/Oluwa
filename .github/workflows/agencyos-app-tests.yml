@@ -1,4 +1,4 @@
-name: AgencyOS application checks
+name: AgencyOS full web quality gate
 
 on:
   push:
@@ -7,17 +7,23 @@ on:
       - "database/migrations/**"
       - "tests/**"
       - "package.json"
+      - "next.config.*"
+      - "tsconfig.json"
       - ".github/workflows/agencyos-app-tests.yml"
   pull_request:
     paths:
       - "src/**"
+      - "database/migrations/**"
       - "tests/**"
       - "package.json"
+      - "next.config.*"
+      - "tsconfig.json"
       - ".github/workflows/agencyos-app-tests.yml"
 
 jobs:
-  finance-validation:
+  web-quality-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,5 +31,5 @@ jobs:
           node-version: "22"
       - name: Install dependencies
         run: npm install --ignore-scripts
-      - name: Run application unit tests
-        run: npm test
+      - name: Run tests and production build
+        run: npm run build

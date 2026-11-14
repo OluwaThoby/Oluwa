@@ -1,9 +1,11 @@
 import { generateText } from 'ai';
+import { MultiProviderRuntime } from './multi-provider-runtime';
 
 export type AgencyTextRequest = {
   system: string;
   prompt: string;
   maxOutputTokens?: number;
+  taskType?: string;
 };
 
 export type AgencyTextResult = {
@@ -172,6 +174,8 @@ export function getAgencyModelRuntime(): AgencyModelRuntime {
       runtime = new VercelGatewayRuntime();
     } else if (runtimeKind === 'self-hosted') {
       runtime = new SelfHostedRuntime();
+    } else if (runtimeKind === 'multi-provider') {
+      runtime = new MultiProviderRuntime();
     } else {
       throw new Error(
         `Unsupported AGENCY_MODEL_RUNTIME "${runtimeKind}". No fallback to a third-party model is permitted.`,

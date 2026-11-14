@@ -49,6 +49,10 @@ export async function GET() {
           ? modelReady
             ? 'A model ID and recognised gateway credential are present. This checks configuration only, not live model access.'
             : 'Gateway mode requires an explicitly selected provider/model ID and recognised gateway credential. No model is selected automatically.'
+        : runtime === 'multi-provider'
+          ? modelReady
+            ? 'Multi-provider mode is active. Each task is routed to its configured provider. This checks configuration only, not live provider connectivity or quota.'
+            : `Multi-provider mode is missing configuration: ${runtimeReadiness.missing.join(', ')}.`
           : 'Unsupported runtime selected. No fallback to another model is permitted.',
       model: selectedModel,
     },
@@ -80,10 +84,12 @@ export async function GET() {
       key: 'worker',
       name: 'Background worker',
       category: 'Automation',
-      configured: configured(['AGENCYOS_WORKER_URL']) &&
-        configured(['AGENCYOS_WORKER_SECRET']),
+      configured: process.env.WORKER_EXECUTION_ENABLED === 'true' &&
+        process.env.SCHEDULER_TRIGGER_CONFIGURED === 'true' &&
+        typeof process.env.CRON_SECRET === 'string' && process.env.CRON_SECRET.length >= 32 &&
+        configured(['DATABASE_URL']) && modelReady,
       required: false,
-      detail: 'Requires both a worker URL and shared secret. Scheduled jobs remain paused until execution is tested and approved.',
+      detail: 'Worker readiness requires WORKER_EXECUTION_ENABLED=true, SCHEDULER_TRIGGER_CONFIGURED=true, CRON_SECRET (at least 32 characters), DATABASE_URL and a configured model runtime. GitHub Actions repository secrets AGENCYOS_WORKER_URL and CRON_SECRET must also be present; this endpoint cannot inspect GitHub secrets. No jobs are claimed by this readiness check.',
     },
     {
       key: 'payments',

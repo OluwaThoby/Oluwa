@@ -10,7 +10,8 @@ import { normalizeAgentTaskType } from '@/lib/intelligence/agent-task-types.mjs'
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+// Leave time for the 45-second provider timeout plus lease completion writes.
+export const maxDuration = 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -100,14 +101,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'An approved AI model runtime is not configured. No runs were claimed.' }, { status: 503 });
   }
 
-  let requestedBatch = 2;
-  try {
-    const body = await request.json();
-    if (Number.isInteger(body?.batch_size)) requestedBatch = Number(body.batch_size);
-  } catch {
-    // An empty request body is valid; the worker uses the conservative default.
-  }
-  const batchSize = Math.max(1, Math.min(3, requestedBatch));
+  // One sequential inference per invocation keeps worst-case provider latency within the 60s function budget.
+  const batchSize = 1;
   const workerId = `agencyos-worker-${randomUUID()}`;
   const db = neon(process.env.DATABASE_URL);
 
@@ -130,23 +125,49 @@ export async function POST(request: Request) {
     }
 
     const scheduleResult = await materializeDueSchedules(db, new Date(), 10);
-    const claimedAgentTasks = await db`
-      SELECT * FROM public.claim_agent_tasks(
-        ${workerId},
-        ${batchSize},
-        180
-      )
-    ` as Array<Record<string, any>>;
-    const remainingBatch = Math.max(0, batchSize - claimedAgentTasks.length);
-    const claimedRuns = remainingBatch > 0
-      ? await db`
-          SELECT * FROM public.claim_automation_runs(
-            ${workerId},
-            ${remainingBatch},
-            180
-          )
-        ` as Array<Record<string, any>>
-      : [];
+    // Choose the oldest eligible item across both queues so a backlog of
+    // manual agent tasks cannot permanently starve scheduled automation (or vice versa).
+    const queueAges = await db`
+      SELECT
+        (SELECT MIN(t.created_at)
+         FROM public.agent_tasks AS t
+         WHERE t.status = 'queued'
+           AND t.requires_approval = false
+           AND t.attempt_count < t.max_attempts) AS oldest_agent_task,
+        (SELECT MIN(r.created_at)
+         FROM public.automation_runs AS r
+         JOIN public.automation_jobs AS j ON j.id = r.job_id
+         WHERE r.status = 'queued'
+           AND j.status = 'active'
+           AND r.attempt_count < j.max_attempts) AS oldest_automation_run
+    ` as Array<{ oldest_agent_task: string | null; oldest_automation_run: string | null }>;
+    const agentCreatedAt = queueAges[0]?.oldest_agent_task
+      ? Date.parse(String(queueAges[0].oldest_agent_task)) : Number.POSITIVE_INFINITY;
+    const automationCreatedAt = queueAges[0]?.oldest_automation_run
+      ? Date.parse(String(queueAges[0].oldest_automation_run)) : Number.POSITIVE_INFINITY;
+    const preferAgentTasks = agentCreatedAt <= automationCreatedAt;
+
+    let claimedAgentTasks: Array<Record<string, any>> = [];
+    let claimedRuns: Array<Record<string, any>> = [];
+    if (preferAgentTasks) {
+      claimedAgentTasks = await db`
+        SELECT * FROM public.claim_agent_tasks(${workerId}, ${batchSize}, 180)
+      ` as Array<Record<string, any>>;
+      if (claimedAgentTasks.length === 0) {
+        claimedRuns = await db`
+          SELECT * FROM public.claim_automation_runs(${workerId}, ${batchSize}, 180)
+        ` as Array<Record<string, any>>;
+      }
+    } else {
+      claimedRuns = await db`
+        SELECT * FROM public.claim_automation_runs(${workerId}, ${batchSize}, 180)
+      ` as Array<Record<string, any>>;
+      if (claimedRuns.length === 0) {
+        claimedAgentTasks = await db`
+          SELECT * FROM public.claim_agent_tasks(${workerId}, ${batchSize}, 180)
+        ` as Array<Record<string, any>>;
+      }
+    }
     const outcomes: Array<Record<string, unknown>> = [];
 
     for (const task of claimedAgentTasks) {
@@ -166,7 +187,7 @@ export async function POST(request: Request) {
             `Assigned specialist agent: ${String(task.agent_key)}.`,
             `Original task type: ${rawTaskType}.`,
             String(task.instructions || ''),
-          ].filter(Boolean).join('\\n'),
+          ].filter(Boolean).join('\n'),
         };
         const evidence = await loadEvidence(db, jobType, config, input);
         const processed = await processAutomationRun({

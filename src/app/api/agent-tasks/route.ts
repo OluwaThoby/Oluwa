@@ -91,46 +91,74 @@ export async function POST(request: Request) {
 
     const status = approvalRequired ? 'waiting_approval' : 'queued';
     const db = neon(process.env.DATABASE_URL);
+    // Serialize requests for the same task type/title, then reuse an identical
+    // queued/running/approval-pending task instead of creating another copy.
+    // Failed and completed tasks are deliberately excluded so owners can retry.
+    const dedupeLockKey = `${taskType || 'general'}\n${title}`;
     const rows = await db`
-      INSERT INTO public.agent_tasks
-        (agent_key, task_type, title, instructions, input, status, priority,
-         requires_approval, requested_by)
-      VALUES
-        (${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
-         ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
-         ${approvalRequired}, 'owner')
-      RETURNING id, agent_key, task_type, title, status, priority,
-                requires_approval, created_at
-    `;
-
-    await db`
-      INSERT INTO public.agent_task_events (task_id, event_type, details)
-      VALUES (
-        ${rows[0].id},
-        'task_created',
-        ${JSON.stringify({
-          source: 'owner_console',
-          status,
-          approvalRequired,
-          classifiedPermissions: actionPolicy.permissions,
-          highestRisk: actionPolicy.highestRisk,
-          financialApprovalRequired: actionPolicy.financialApprovalRequired,
-          executionGranted: false,
-          approvalReason: approvalRequired
-            ? 'Sensitive action detected in submitted task content or explicitly requested.'
-            : null,
-        })}::jsonb
+      WITH request_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtextextended(${dedupeLockKey}, 0))
+      ), existing AS MATERIALIZED (
+        SELECT t.id, t.agent_key, t.task_type, t.title, t.status, t.priority,
+               t.requires_approval, t.created_at
+        FROM public.agent_tasks AS t
+        CROSS JOIN request_lock
+        WHERE t.task_type = ${taskType || 'general'}
+          AND t.title = ${title}
+          AND t.instructions = ${instructions}
+          AND t.input = ${JSON.stringify(input)}::jsonb
+          AND t.status IN ('queued', 'running', 'waiting_approval')
+        ORDER BY t.created_at DESC
+        LIMIT 1
+      ), created AS (
+        INSERT INTO public.agent_tasks
+          (agent_key, task_type, title, instructions, input, status, priority,
+           requires_approval, requested_by)
+        SELECT ${agentKey}, ${taskType || 'general'}, ${title}, ${instructions},
+               ${JSON.stringify(input)}::jsonb, ${status}, ${priority},
+               ${approvalRequired}, 'owner'
+        WHERE NOT EXISTS (SELECT 1 FROM existing)
+        RETURNING id, agent_key, task_type, title, status, priority,
+                  requires_approval, created_at
+      ), logged AS (
+        INSERT INTO public.agent_task_events (task_id, event_type, details)
+        SELECT id, 'task_created',
+          ${JSON.stringify({
+            source: 'owner_console',
+            status,
+            approvalRequired,
+            classifiedPermissions: actionPolicy.permissions,
+            highestRisk: actionPolicy.highestRisk,
+            financialApprovalRequired: actionPolicy.financialApprovalRequired,
+            executionGranted: false,
+            approvalReason: approvalRequired
+              ? 'Sensitive action detected in submitted task content or explicitly requested.'
+              : null,
+          })}::jsonb
+        FROM created
+        RETURNING task_id
+      ), result AS (
+        SELECT created.*, false AS duplicate
+        FROM created
+        INNER JOIN logged ON logged.task_id = created.id
+        UNION ALL
+        SELECT existing.*, true AS duplicate FROM existing
       )
+      SELECT * FROM result LIMIT 1
     `;
 
+    if (!rows[0]) return jsonError('Unable to confirm task creation.', 500);
+    const duplicate = Boolean((rows[0] as { duplicate?: boolean }).duplicate);
     return NextResponse.json(
       {
         task: rows[0],
-        message: approvalRequired
-          ? 'Task saved and is waiting for owner approval. No external action has been taken.'
-          : 'Task queued. Draft-only execution is available when an approved model is configured; no external action is taken.',
+        message: duplicate
+          ? 'An identical active task already exists. Reusing it instead of creating a duplicate.'
+          : approvalRequired
+            ? 'Task saved and is waiting for owner approval. No external action has been taken.'
+            : 'Task queued. Draft-only execution is available when an approved model is configured; no external action is taken.',
       },
-      { status: 201 },
+      { status: duplicate ? 200 : 201 },
     );
   } catch {
     return jsonError('Unable to create task. Check the task details and try again.', 400);
