@@ -85,7 +85,21 @@ async function gemini(
     cache: 'no-store',
   });
   if (!response.ok) {
-    throw new Error(`Gemini inference returned HTTP ${response.status}; check API access, quota and model configuration.`);
+    // Preserve Google's structured error message so the dashboard can distinguish
+    // service overload, quota, API access and model errors instead of hiding them.
+    let detail = '';
+    try {
+      const body = await response.json() as { error?: { message?: string; status?: string } };
+      detail = [body.error?.status, body.error?.message]
+        .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+        .join(': ')
+        .slice(0, 1200);
+    } catch {
+      detail = '';
+    }
+    throw new Error(
+      `Gemini inference returned HTTP ${response.status}${detail ? ` — ${detail}` : ''}; check API access, quota and model configuration.`,
+    );
   }
   const payload = await response.json() as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
