@@ -25,6 +25,7 @@ const sections = [
   ['Workflows', '/dashboard/workflows'],
   ['Reports', '/dashboard/reports'],
   ['System health', '/dashboard/system'],
+  ['Business profile', '/dashboard/business-profile'],
 ];
 
 async function readApi(path: string) {
