@@ -70,44 +70,72 @@ async function gemini(
   const key = required('GEMINI_API_KEY');
   const model = required('GEMINI_MODEL');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': key,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: request.system }] },
-        contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens(request), temperature: 0.2 },
-      }),
-      // Keep this below the route's 60-second execution limit.
-      signal: AbortSignal.timeout(52000),
-      cache: 'no-store',
-    });
-  } catch (error) {
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      throw new Error('Gemini did not respond within 52 seconds. This is a provider/network timeout, not an API-key rejection. Retry once; if it repeats, switch the Gemini model or use another provider.');
-    }
-    throw error;
-  }
-  if (!response.ok) {
-    // Preserve Google's structured error message so the dashboard can distinguish
-    // service overload, quota, API access and model errors instead of hiding them.
-    let detail = '';
+  let response: Response | undefined;
+  let lastDetail = '';
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+
+  // Google can briefly return 503 during model-capacity spikes. Retry once
+  // inside the API route's execution budget; never switch vendors silently.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const body = await response.json() as { error?: { message?: string; status?: string } };
-      detail = [body.error?.status, body.error?.message]
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': key,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: request.system }] },
+          contents: [{ role: 'user', parts: [{ text: request.prompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens(request), temperature: 0.2 },
+        }),
+        // Two bounded attempts plus backoff stay below the route's 60-second limit.
+        signal: AbortSignal.timeout(24000),
+        cache: 'no-store',
+      });
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+        throw new Error('Gemini did not respond within 24 seconds. This is a provider/network timeout, not an API-key rejection. Retry later or use another configured provider.');
+      }
+      throw error;
+    }
+
+    if (response.ok || !retryableStatuses.has(response.status) || attempt === 1) break;
+
+    // Read the first response now so its diagnostic body is not lost.
+    try {
+      const body = await response.clone().json() as { error?: { message?: string; status?: string } };
+      lastDetail = [body.error?.status, body.error?.message]
         .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
         .join(': ')
         .slice(0, 1200);
     } catch {
-      detail = '';
+      lastDetail = '';
     }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+
+  if (!response) throw new Error('Gemini request did not return a response.');
+  if (!response.ok) {
+    let detail = lastDetail;
+    if (!detail) {
+      try {
+        const body = await response.json() as { error?: { message?: string; status?: string } };
+        detail = [body.error?.status, body.error?.message]
+          .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+          .join(': ')
+          .slice(0, 1200);
+      } catch {
+        detail = '';
+      }
+    }
+    const capacityHint = response.status === 503
+      ? ' Google reports temporary model capacity pressure; this does not indicate an invalid API key.'
+      : response.status === 429
+        ? ' Google reports a rate or quota limit for this project.'
+        : '';
     throw new Error(
-      `Gemini inference returned HTTP ${response.status}${detail ? ` — ${detail}` : ''}; check API access, quota and model configuration.`,
+      `Gemini inference returned HTTP ${response.status}${detail ? ` — ${detail}` : ''}.${capacityHint} Check the Google AI Studio usage limits if this persists.`,
     );
   }
   const payload = await response.json() as {
