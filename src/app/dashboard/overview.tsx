@@ -25,6 +25,7 @@ const sections = [
   ['Workflows', '/dashboard/workflows'],
   ['Reports', '/dashboard/reports'],
   ['System health', '/dashboard/system'],
+  ['Operating plans', '/dashboard/operating-plans'],
   ['Business profile', '/dashboard/business-profile'],
 ];
 
