@@ -86,7 +86,7 @@ function validateFiles(value: unknown) {
     /document\.cookie|localstorage|sessionstorage/i.test(combined),
   ];
   if (blockers.some(Boolean)) {
-    throw new Error('Generated source contains a disallowed remote script, iframe, executable URL or browser storage access.');
+    throw new Error('Generated source contains a disallowed script, form, inline event handler, network request, iframe, executable URL or browser storage access.');
   }
   const warnings: string[] = [];
   if (!/<meta[^>]+name=["']viewport["']/i.test(files['index.html'])) warnings.push('Missing responsive viewport metadata.');
@@ -144,6 +144,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     `;
     const build = rows[0] as Record<string, unknown> | undefined;
     if (!build) return NextResponse.json({ error: 'Website build not found.' }, { status: 404 });
+    if (['commerce', 'custom_app'].includes(String(build.complexity))) {
+      return NextResponse.json({ error: 'This build is marked E-commerce or Custom Web Application. The current Website Studio generator only creates static Starter and Business website drafts; it cannot build a real cart, checkout, database, login or application backend. Change the build scope to Starter or Business, or complete a separately scoped application build.' }, { status: 422 });
+    }
     if (['approved', 'deploying', 'live', 'cancelled'].includes(String(build.status))) {
       return NextResponse.json({ error: 'This build is locked from regeneration in its current state.' }, { status: 409 });
     }
@@ -162,11 +165,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       maxOutputTokens: 8000,
       system: [
         'You are the senior website engineering specialist working under AgencyOS Chief AI.',
-        'Create a complete, polished, responsive, production-minded static website starter as source code.',
+        'Create a visually polished, responsive static website draft for a real business. This is a front-end draft only, not a production-ready application or live site.',
         'Return exactly three file sections using these literal boundaries, with raw source between them and no JSON, markdown fences or commentary: <<<INDEX_HTML>>> ... <<<END_INDEX_HTML>>> ; <<<STYLES_CSS>>> ... <<<END_STYLES_CSS>>> ; <<<SCRIPT_JS>>> ... <<<END_SCRIPT_JS>>>. The script section may be empty.',
         'The HTML must reference ./styles.css and ./script.js. Include semantic landmarks, accessible labels, mobile navigation if useful, metadata, and real useful content based only on supplied facts.',
         'Never invent client testimonials, certifications, addresses, phone numbers, prices, statistics or awards. If details are absent, use clear neutral copy without fake specifics.',
-        'Do not include external scripts, iframes, remote fonts, trackers, analytics, browser storage, payment processing, credential collection or hidden network calls.',
+        'Do not include external scripts, iframes, remote fonts, trackers, analytics, browser storage, forms, inline event handlers, fetch, XMLHttpRequest, WebSocket, EventSource, sendBeacon, payment processing, credential collection or hidden network calls.',
         'Do not use placeholder company names, lorem ipsum, or fake contact details. Never invent business capabilities, credentials, service coverage, guarantees, prices or operating claims from a generic category. If facts are missing, keep the copy neutral and label the missing information for owner review. Do not create contact forms or pretend a message was sent or saved; there is no form backend. Use only anchor navigation and honest non-submitting calls to action.',
         'Keep source compact. Use no build tools or external dependencies. Do not include markdown fences.',
       ].join('\n'),
@@ -221,7 +224,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       message: 'Website source generated and stored privately. It has not been published; manual QA and owner approval are still required.',
     }, { status: 200 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Website generation failed.';
+    const rawMessage = error instanceof Error ? error.message : 'Website generation failed.';
+    const message = /incomplete|cut off|output limit|MAX_TOKENS|malformed/i.test(rawMessage)
+      ? 'The AI stopped before completing the website files. Nothing was saved. This can happen when the selected model reaches its output limit. Try a shorter brief; if it happens again, we need to change the model or generation strategy.'
+      : rawMessage;
     return NextResponse.json({ error: message.slice(0, 500) }, { status: 502 });
   }
 }
