@@ -67,6 +67,17 @@ function validateFiles(value: unknown) {
     throw new Error('The generated package must include index.html and styles.css.');
   }
   const html = files['index.html'].toLowerCase();
+  if (Object.values(files).some((source) => /<{3,}\\s*$/.test(source.trim()))) {
+    throw new Error('The AI response appears to have been cut off mid-file. No website source was saved; retry generation.');
+  }
+  if (!/<\\/html>\\s*$/i.test(files['index.html']) || !/<\\/body>/i.test(files['index.html']) || !/<\\/head>/i.test(files['index.html'])) {
+    throw new Error('The generated HTML is incomplete. No website source was saved; retry generation.');
+  }
+  const cssOpen = (files['styles.css'].match(/\\{/g) || []).length;
+  const cssClose = (files['styles.css'].match(/\\}/g) || []).length;
+  if (cssOpen !== cssClose) {
+    throw new Error('The generated CSS is incomplete or malformed. No website source was saved; retry generation.');
+  }
   const combined = Object.values(files).join('\n').toLowerCase();
   const blockers = [
     /<script[^>]+src\s*=\s*["']https?:/i.test(files['index.html']),
@@ -148,7 +159,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
     const result = await generateAgencyText({
       taskType: 'website_generation',
-      maxOutputTokens: 4000,
+      maxOutputTokens: 8000,
       system: [
         'You are the senior website engineering specialist working under AgencyOS Chief AI.',
         'Create a complete, polished, responsive, production-minded static website starter as source code.',
@@ -156,7 +167,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         'The HTML must reference ./styles.css and ./script.js. Include semantic landmarks, accessible labels, mobile navigation if useful, metadata, and real useful content based only on supplied facts.',
         'Never invent client testimonials, certifications, addresses, phone numbers, prices, statistics or awards. If details are absent, use clear neutral copy without fake specifics.',
         'Do not include external scripts, iframes, remote fonts, trackers, analytics, browser storage, payment processing, credential collection or hidden network calls.',
-        'Do not use placeholder company names, lorem ipsum, or fake contact details. Make all interactive controls functional within the static page or visibly mark unavailable integrations as not connected.',
+        'Do not use placeholder company names, lorem ipsum, or fake contact details. Never invent business capabilities, credentials, service coverage, guarantees, prices or operating claims from a generic category. If facts are missing, keep the copy neutral and label the missing information for owner review. Do not create contact forms or pretend a message was sent or saved; there is no form backend. Use only anchor navigation and honest non-submitting calls to action.',
         'Keep source compact. Use no build tools or external dependencies. Do not include markdown fences.',
       ].join('\n'),
       prompt: 'Build the website from this verified project brief:\n' + JSON.stringify(brief),
