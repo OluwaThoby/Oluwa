@@ -118,9 +118,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!rows[0].generated_at || !rows[0].generated_files || Object.keys(rows[0].generated_files as object).length === 0) {
       return NextResponse.json({ error: 'No generated source is available yet.' }, { status: 404 });
     }
+    const checked = validateFiles(rows[0].generated_files);
+    if (checked.warnings.length) {
+      return NextResponse.json({ error: 'This saved draft has not passed the current preview checks. Regenerate it before previewing.', warnings: checked.warnings }, { status: 409 });
+    }
     return NextResponse.json({ build: rows[0] });
-  } catch {
-    return NextResponse.json({ error: 'Unable to load the private website source.' }, { status: 503 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load the private website source.';
+    return NextResponse.json({ error: 'This saved draft failed the current safety checks. Regenerate it before previewing. ' + message.slice(0, 240) }, { status: 409 });
   }
 }
 
@@ -167,7 +172,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       maxOutputTokens: 8000,
       system: [
         'You are the senior website engineering specialist working under AgencyOS Chief AI.',
-        'Create a visually polished, responsive static website draft for a real business. This is a front-end draft only, not a production-ready application or live site.',
+        'Create a visually polished, responsive static website draft for a real business. This is a front-end draft only, not a production-ready application or live site. Use a premium modern visual system: clean light background, strong readable contrast, generous whitespace, consistent max-width containers, carefully spaced typography, a distinctive hero, clear navigation, a primary call to action, at least three useful content sections and a considered footer. Avoid generic placeholder layouts, excessive cards, random gradients and cramped mobile layouts.',
         'Return exactly three file sections using these literal boundaries, with raw source between them and no JSON, markdown fences or commentary: <<<INDEX_HTML>>> ... <<<END_INDEX_HTML>>> ; <<<STYLES_CSS>>> ... <<<END_STYLES_CSS>>> ; <<<SCRIPT_JS>>> ... <<<END_SCRIPT_JS>>>. The script section may be empty.',
         'The HTML must reference ./styles.css and ./script.js. Include semantic landmarks, accessible labels, mobile navigation if useful, metadata, and real useful content based only on supplied facts.',
         'Never invent client testimonials, certifications, addresses, phone numbers, prices, statistics or awards. If details are absent, use clear neutral copy without fake specifics.',
