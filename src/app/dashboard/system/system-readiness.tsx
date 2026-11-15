@@ -12,6 +12,8 @@ type Check = {
   model?: string | null;
 };
 
+type DiagnosticReport = { status: string; checkedAt: string; checks: { id: string; label: string; ok: boolean; detail: string }[]; notes: string[] };
+
 type Readiness = {
   generated_at: string;
   checks: Check[];
@@ -28,6 +30,8 @@ const nav = [
   ['Workflows', '/dashboard/workflows'],
   ['Reports', '/dashboard/reports'],
   ['System health', '/dashboard/system'],
+  ['Operating plans', '/dashboard/operating-plans'],
+  ['Business profile', '/dashboard/business-profile'],
 ];
 
 export default function SystemReadiness() {
@@ -36,6 +40,8 @@ export default function SystemReadiness() {
   const [loading, setLoading] = useState(true);
   const [aiTesting, setAiTesting] = useState<string | null>(null);
   const [aiTest, setAiTest] = useState('');
+  const [diagnostics, setDiagnostics] = useState<DiagnosticReport | null>(null);
+  const [diagnosticError, setDiagnosticError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,7 +58,19 @@ export default function SystemReadiness() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); void runDiagnostics(); }, [load]);
+
+  async function runDiagnostics() {
+    setDiagnosticError('');
+    try {
+      const response = await fetch('/api/system/diagnostics', { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Database checks failed.');
+      setDiagnostics(result);
+    } catch (err) {
+      setDiagnosticError(err instanceof Error ? err.message : 'Database checks failed.');
+    }
+  }
 
   async function testProvider(provider: 'gemini' | 'groq' | 'openrouter') {
     setAiTesting(provider); setAiTest('');
