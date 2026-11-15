@@ -29,7 +29,7 @@ function parsePlan(text: string) {
     const char = candidate[index];
     if (inString) {
       if (escaped) escaped = false;
-      else if (char === '\\\\') escaped = true;
+      else if (char.charCodeAt(0) === 92) escaped = true;
       else if (char === '"') inString = false;
       continue;
     }
