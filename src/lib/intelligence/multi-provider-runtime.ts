@@ -10,7 +10,7 @@ function required(name: string) {
 }
 
 function maxTokens(request: AgencyTextRequest) {
-  return Math.min(4000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
+  return Math.min(8000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
 }
 
 async function openAICompatible(
@@ -51,10 +51,14 @@ async function openAICompatible(
     throw new Error(`${provider} inference returned HTTP ${response.status}; check provider quota, model access and configuration.`);
   }
   const payload = await response.json() as {
-    choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
+    choices?: Array<{ finish_reason?: string | null; message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
     usage?: unknown;
   };
-  const content = payload.choices?.[0]?.message?.content;
+  const choice = payload.choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new Error(`${provider} reached its output limit before completing the response. Reduce the brief or choose a model with a larger output limit; incomplete output was not accepted.`);
+  }
+  const content = choice?.message?.content;
   const text = Array.isArray(content)
     ? content.filter((part) => part.type === 'text').map((part) => part.text ?? '').join('')
     : content;
@@ -139,10 +143,14 @@ async function gemini(
     );
   }
   const payload = await response.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
     usageMetadata?: unknown;
   };
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('');
+  const candidate = payload.candidates?.[0];
+  if (candidate?.finishReason === 'MAX_TOKENS') {
+    throw new Error('Gemini reached its output limit before completing the response. The incomplete output was not accepted; reduce the brief or use a model with a larger output limit.');
+  }
+  const text = candidate?.content?.parts?.map((part) => part.text ?? '').join('');
   if (!text?.trim()) throw new Error('Gemini returned no usable text output.');
   return { text, model: `gemini/${model}`, usage: payload.usageMetadata ?? null };
 }
