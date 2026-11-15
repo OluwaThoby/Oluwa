@@ -129,6 +129,17 @@ export default function SystemReadiness() {
         {data && <p className="notice">{data.note} Last checked: {new Date(data.generated_at).toLocaleString()}.</p>}
       </section>
       <section className="panel">
+        <div className="panel-head"><div><h2>Live workspace diagnostics</h2><div className="sub">Read-only checks against this deployment's database.</div></div><button className="btn" onClick={() => void runDiagnostics()}>↻ Run database checks</button></div>
+        {diagnosticError && <p className="error">{diagnosticError}</p>}
+        {diagnostics && <>
+          <p className={diagnostics.status === 'operational' ? 'notice' : 'error'}>{diagnostics.status === 'operational' ? 'Core database checks passed.' : 'Some database checks need attention.'} Checked {new Date(diagnostics.checkedAt).toLocaleString()}.</p>
+          <div className="table-wrap"><table><thead><tr><th>CHECK</th><th>RESULT</th><th>DETAIL</th></tr></thead><tbody>
+            {diagnostics.checks.map(item => <tr key={item.id}><td><span className="business">{item.label}</span></td><td><span className="badge">{item.ok ? 'PASSED' : 'NEEDS ATTENTION'}</span></td><td>{item.detail}</td></tr>)}
+          </tbody></table></div>
+          <p className="notice">{diagnostics.notes.join(' ')}</p>
+        </>}
+      </section>
+      <section className="panel">
         <div className="panel-head"><div><h2>Execution safeguards</h2><div className="sub">The system should not take consequential actions just because an integration becomes available.</div></div></div>
         <div className="form-grid">
           {[
