@@ -15,7 +15,8 @@ type Snapshot = {
 type LoadState = 'loading' | 'ready' | 'partial' | 'error';
 
 const sections = [
-  ['Overview', '/dashboard'],\n  ['Chief AI & agents', '/dashboard/chief-ai'],
+  ['Overview', '/dashboard'],
+  ['Chief AI & agents', '/dashboard/chief-ai'],
   ['Research & leads', '/dashboard/leads'],
   ['Projects & delivery', '/dashboard/projects'],
   ['Clients & retention', '/dashboard/clients'],
