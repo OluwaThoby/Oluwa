@@ -17,10 +17,41 @@ async function isOwner() {
 }
 
 function parsePlan(text: string) {
-  const match = text.trim().match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Chief AI returned an invalid plan format.');
-  const value = JSON.parse(match[0]);
-  if (!value || typeof value !== 'object' || !Array.isArray(value.tasks)) throw new Error('Chief AI plan is missing its specialist task list.');
+  const candidate = text.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/, '');
+  const start = candidate.indexOf('{');
+  if (start < 0) throw new Error('Chief AI did not return a structured plan. Nothing was saved.');
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let end = -1;
+  for (let index = start; index < candidate.length; index += 1) {
+    const char = candidate[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) { end = index; break; }
+    }
+  }
+  if (end < 0) throw new Error('Chief AI response ended before the plan was complete. Please retry; no tasks were saved.');
+
+  let value: any;
+  try { value = JSON.parse(candidate.slice(start, end + 1)); }
+  catch { throw new Error('Chief AI returned an unreadable plan. Please retry; no tasks were saved.'); }
+
+  if (!value || typeof value !== 'object' || !Array.isArray(value.tasks)) {
+    throw new Error('Chief AI plan is missing its specialist task list. Nothing was saved.');
+  }
+  if (value.tasks.length < 1 || value.tasks.length > 6) {
+    throw new Error('Chief AI must create between one and six specialist tasks. Nothing was saved.');
+  }
   return value;
 }
 
