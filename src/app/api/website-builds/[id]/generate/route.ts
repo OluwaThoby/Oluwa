@@ -62,6 +62,29 @@ function validateFiles(value: unknown) {
   return { files, warnings };
 }
 
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!process.env.DATABASE_URL) return NextResponse.json({ error: 'Database is not configured.' }, { status: 503 });
+  const { id } = await context.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'Invalid website build ID.' }, { status: 400 });
+  }
+  try {
+    const db = neon(process.env.DATABASE_URL);
+    const rows = await db`
+      SELECT id, status, generated_files, qa_report, model_used, generated_at
+      FROM public.website_builds WHERE id = ${id} LIMIT 1
+    `;
+    if (!rows[0]) return NextResponse.json({ error: 'Website build not found.' }, { status: 404 });
+    if (!rows[0].generated_at || !rows[0].generated_files || Object.keys(rows[0].generated_files as object).length === 0) {
+      return NextResponse.json({ error: 'No generated source is available yet.' }, { status: 404 });
+    }
+    return NextResponse.json({ build: rows[0] });
+  } catch {
+    return NextResponse.json({ error: 'Unable to load the private website source.' }, { status: 503 });
+  }
+}
+
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: 'Database is not configured.' }, { status: 503 });
