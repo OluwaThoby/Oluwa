@@ -12,7 +12,7 @@ const levels = [
   { value: 'custom_app', label: 'Custom web application', note: 'Dashboards, portals and bespoke application workflows' },
 ];
 
-const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function WebsiteStudioPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -80,6 +80,47 @@ export default function WebsiteStudioPage() {
     }
   }
 
+  async function openPreview(buildId: string) {
+    setPreviewLoadingId(buildId);
+    setError('');
+    try {
+      const response = await fetch(`/api/website-builds/${buildId}/generate`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load generated source.');
+      const files = data.build.generated_files as Record<string, string>;
+      const css = (files['styles.css'] || '').replace(/<\/style/gi, '<\\/style');
+      const js = (files['script.js'] || '').replace(/<\/script/gi, '<\\/script');
+      let html = String(files['index.html'] || '');
+      const policy = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">`;
+      html = html.replace(/<link[^>]+href=["']\.\/styles\.css["'][^>]*>/i, '');
+      html = html.replace(/<script[^>]+src=["']\.\/script\.js["'][^>]*><\/script>/i, '');
+      html = html.replace('</head>', `${policy}<style>${css}</style></head>`);
+      html = html.replace('</body>', `<script>${js}</script></body>`);
+      setPreview({ id: buildId, html });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load preview.');
+    } finally {
+      setPreviewLoadingId('');
+    }
+  }
+
+  async function generateWebsite(buildId: string) {
+    setGeneratingId(buildId);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/website-builds/${buildId}/generate`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Website generation failed.');
+      setNotice(`Website source generated with ${data.model}. Basic QA: ${data.qa.status.replaceAll('_', ' ')}. ${data.qa.warnings.length} review warning(s). Nothing has been published.`);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Website generation failed.');
+    } finally {
+      setGeneratingId('');
+    }
+  }
+
   return (
     <main style={{ minHeight: '100vh', background: '#f5f7f6', color: '#17231d', padding: 'clamp(18px, 4vw, 42px)', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ maxWidth: 1120, margin: '0 auto' }}>
@@ -134,7 +175,9 @@ export default function WebsiteStudioPage() {
                       <span style={{ fontSize: 10, fontWeight: 800, color: '#286b45', background: '#edf6ef', borderRadius: 999, padding: '6px 8px' }}>{pretty(build.status)}</span>
                     </div>
                     <div style={{ color: '#58665d', fontSize: 12, marginTop: 12 }}>{pretty(build.complexity)} · Created {new Date(build.created_at).toLocaleDateString()}</div>
-                    {build.preview_url && <a href={build.preview_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 10, color: '#28734d', fontWeight: 700, fontSize: 12 }}>Open preview ↗</a>}\n                    <button type="button" disabled={Boolean(generatingId) || ['approved', 'deploying', 'live', 'cancelled'].includes(build.status)} onClick={() => void generateWebsite(build.id)} style={{ display: 'block', width: '100%', marginTop: 12, border: 0, borderRadius: 9, padding: 11, background: generatingId === build.id ? '#7d9c88' : '#246b43', color: '#fff', fontWeight: 800, cursor: generatingId ? 'wait' : 'pointer' }}>{generatingId === build.id ? 'Generating source…' : 'Generate website source'}</button>\n                    {['qa'].includes(build.status) && <><button type="button" disabled={Boolean(previewLoadingId)} onClick={() => void openPreview(build.id)} style={{ width: '100%', marginTop: 8, border: '1px solid #dce6df', borderRadius: 9, padding: 10, background: '#fff', color: '#246b43', fontWeight: 800 }}>{previewLoadingId === build.id ? 'Loading preview…' : 'Open isolated preview'}</button><small style={{ display: 'block', marginTop: 8, color: '#8a6228' }}>Source generated. Automated checks are not a substitute for manual QA and approval.</small></>}
+                    {build.preview_url && <a href={build.preview_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 10, color: '#28734d', fontWeight: 700, fontSize: 12 }}>Open preview ↗</a>}
+                    <button type="button" disabled={Boolean(generatingId) || ['approved', 'deploying', 'live', 'cancelled'].includes(build.status)} onClick={() => void generateWebsite(build.id)} style={{ display: 'block', width: '100%', marginTop: 12, border: 0, borderRadius: 9, padding: 11, background: generatingId === build.id ? '#7d9c88' : '#246b43', color: '#fff', fontWeight: 800, cursor: generatingId ? 'wait' : 'pointer' }}>{generatingId === build.id ? 'Generating source…' : 'Generate website source'}</button>
+                    {['qa'].includes(build.status) && <><button type="button" disabled={Boolean(previewLoadingId)} onClick={() => void openPreview(build.id)} style={{ width: '100%', marginTop: 8, border: '1px solid #dce6df', borderRadius: 9, padding: 10, background: '#fff', color: '#246b43', fontWeight: 800 }}>{previewLoadingId === build.id ? 'Loading preview…' : 'Open isolated preview'}</button><small style={{ display: 'block', marginTop: 8, color: '#8a6228' }}>Source generated. Automated checks are not a substitute for manual QA and approval.</small></>}
                   </article>
                 ))}
               </div>
@@ -142,7 +185,9 @@ export default function WebsiteStudioPage() {
           </section>
         </section>
 
-        {preview && <section style={{ marginTop: 20, background: '#fff', border: '1px solid #dfe8e1', borderRadius: 16, padding: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><strong>Isolated website preview</strong><button type="button" onClick={() => setPreview(null)} style={{ border: '1px solid #dce6df', borderRadius: 8, background: '#fff', padding: '7px 10px' }}>Close</button></div><iframe title="Generated website preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={preview.html} style={{ width: '100%', height: 620, border: '1px solid #e1e8e3', borderRadius: 10, marginTop: 12, background: '#fff' }} /></section>}\n\n        <section style={{ marginTop: 20, background: '#eef3ef', border: '1px solid #dfe8e1', borderRadius: 16, padding: 18 }}>
+        {preview && <section style={{ marginTop: 20, background: '#fff', border: '1px solid #dfe8e1', borderRadius: 16, padding: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><strong>Isolated website preview</strong><button type="button" onClick={() => setPreview(null)} style={{ border: '1px solid #dce6df', borderRadius: 8, background: '#fff', padding: '7px 10px' }}>Close</button></div><iframe title="Generated website preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={preview.html} style={{ width: '100%', height: 620, border: '1px solid #e1e8e3', borderRadius: 10, marginTop: 12, background: '#fff' }} /></section>}
+
+        <section style={{ marginTop: 20, background: '#eef3ef', border: '1px solid #dfe8e1', borderRadius: 16, padding: 18 }}>
           <strong style={{ fontSize: 13 }}>Production safety is intentional</strong>
           <p style={{ color: '#627067', fontSize: 12, lineHeight: 1.6, marginBottom: 0 }}>Build records are tracked separately from live websites. Generated source is stored privately with basic automated checks. Browser QA, customer preview, customer portal access and controlled deployment remain separate approval-gated steps. Nothing is published automatically.</p>
         </section>
