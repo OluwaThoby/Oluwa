@@ -22,6 +22,7 @@ export default function WebsiteStudioPage() {
   const [brief, setBrief] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingId, setGeneratingId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -96,7 +97,7 @@ export default function WebsiteStudioPage() {
           <form onSubmit={createIntake} style={{ background: '#fff', border: '1px solid #e2e9e4', borderRadius: 18, padding: 'clamp(18px, 3vw, 26px)', boxShadow: '0 8px 28px rgba(20,50,32,.04)' }}>
             <div style={{ color: '#28734d', fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>NEW DELIVERY INTAKE</div>
             <h2 style={{ fontSize: 22, margin: '9px 0 6px' }}>Start a website build</h2>
-            <p style={{ color: '#6a776f', fontSize: 13, lineHeight: 1.55, marginTop: 0 }}>This creates a tracked build record. It does not generate or publish a website yet.</p>
+            <p style={{ color: '#6a776f', fontSize: 13, lineHeight: 1.55, marginTop: 0 }}>Create a tracked build, then generate private source files for review. Generation uses your configured AI provider and never publishes automatically.</p>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '18px 0 7px' }}>Project</label>
             <select required value={projectId} onChange={(event) => setProjectId(event.target.value)} style={fieldStyle}>
               <option value="">Choose a project</option>
@@ -131,7 +132,7 @@ export default function WebsiteStudioPage() {
                       <span style={{ fontSize: 10, fontWeight: 800, color: '#286b45', background: '#edf6ef', borderRadius: 999, padding: '6px 8px' }}>{pretty(build.status)}</span>
                     </div>
                     <div style={{ color: '#58665d', fontSize: 12, marginTop: 12 }}>{pretty(build.complexity)} · Created {new Date(build.created_at).toLocaleDateString()}</div>
-                    {build.preview_url && <a href={build.preview_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 10, color: '#28734d', fontWeight: 700, fontSize: 12 }}>Open preview ↗</a>}
+                    {build.preview_url && <a href={build.preview_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 10, color: '#28734d', fontWeight: 700, fontSize: 12 }}>Open preview ↗</a>}\n                    <button type="button" disabled={Boolean(generatingId) || ['approved', 'deploying', 'live', 'cancelled'].includes(build.status)} onClick={() => void generateWebsite(build.id)} style={{ display: 'block', width: '100%', marginTop: 12, border: 0, borderRadius: 9, padding: 11, background: generatingId === build.id ? '#7d9c88' : '#246b43', color: '#fff', fontWeight: 800, cursor: generatingId ? 'wait' : 'pointer' }}>{generatingId === build.id ? 'Generating source…' : 'Generate website source'}</button>\n                    {['qa'].includes(build.status) && <small style={{ display: 'block', marginTop: 8, color: '#8a6228' }}>Source generated. Automated checks are not a substitute for manual QA and approval.</small>}
                   </article>
                 ))}
               </div>
@@ -141,7 +142,7 @@ export default function WebsiteStudioPage() {
 
         <section style={{ marginTop: 20, background: '#eef3ef', border: '1px solid #dfe8e1', borderRadius: 16, padding: 18 }}>
           <strong style={{ fontSize: 13 }}>Production safety is intentional</strong>
-          <p style={{ color: '#627067', fontSize: 12, lineHeight: 1.6, marginBottom: 0 }}>Build records are tracked separately from live websites. The next implementation steps are Chief AI requirements planning, isolated code generation, automated QA, customer preview and explicit publication approval. Nothing is deployed from this intake form.</p>
+          <p style={{ color: '#627067', fontSize: 12, lineHeight: 1.6, marginBottom: 0 }}>Build records are tracked separately from live websites. Generated source is stored privately with basic automated checks. Browser QA, customer preview, customer portal access and controlled deployment remain separate approval-gated steps. Nothing is published automatically.</p>
         </section>
       </div>
     </main>
