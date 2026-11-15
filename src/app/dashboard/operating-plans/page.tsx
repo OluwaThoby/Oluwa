@@ -10,6 +10,30 @@ type Plan = {
 
 const label = (value: string) => value.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+function cleanPlanText(value: unknown) {
+  if (typeof value !== 'string') return 'No plan text was saved.';
+  return value.split('\n').map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || /^[-|: ]{3,}$/.test(trimmed)) return '';
+    if (trimmed.startsWith('|')) {
+      const cells = trimmed.split('|').map((cell) => cell.trim()).filter(Boolean);
+      if (cells.every((cell) => /^:?-{2,}:?$/.test(cell))) return '';
+      return cells.length ? '• ' + cells.join(' · ') : '';
+    }
+    return trimmed.replace(/^#{1,6}\s*/, '').replace(/^[-*]\s+/, '• ')
+      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+  }).filter((line) => line.length > 0).join('\n');
+}
+
+function planTitle(plan: Plan) {
+  const text = typeof plan.output?.plan === 'string' ? plan.output.plan : '';
+  const objective = text.match(/(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?Objective(?:\*\*)?\s*:?\s*(.+)/i)?.[1];
+  const candidate = (objective || plan.title).replace(/\*\*/g, '').replace(/^#+\s*/, '').trim();
+  return candidate && !/^agency operating plan$/i.test(candidate)
+    ? candidate.slice(0, 100)
+    : 'Plan from ' + new Date(plan.created_at).toLocaleDateString();
+}
+
 export default function OperatingPlansPage() {
   const [plans,setPlans]=useState<Plan[]>([]);
   const [profileVersion,setProfileVersion]=useState<number|null>(null);
