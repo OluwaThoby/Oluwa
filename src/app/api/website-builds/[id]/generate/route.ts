@@ -36,7 +36,7 @@ function extractWebsiteFiles(text: string) {
 
   // Backward-compatible fallback for providers that still return valid JSON.
   const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/i);
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\\S]*?)\s*```/i);
   const candidate = fenced?.[1] ?? trimmed;
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
@@ -67,14 +67,14 @@ function validateFiles(value: unknown) {
     throw new Error('The generated package must include index.html and styles.css.');
   }
   const html = files['index.html'].toLowerCase();
-  if (Object.values(files).some((source) => /<{3,}\\s*$/.test(source.trim()))) {
+  if (Object.values(files).some((source) => /<{3,}\s*$/.test(source.trim()))) {
     throw new Error('The AI response appears to have been cut off mid-file. No website source was saved; retry generation.');
   }
-  if (!/<\\/html>\\s*$/i.test(files['index.html']) || !/<\\/body>/i.test(files['index.html']) || !/<\\/head>/i.test(files['index.html'])) {
+  if (!/<\/html>\s*$/i.test(files['index.html']) || !/<\/body>/i.test(files['index.html']) || !/<\/head>/i.test(files['index.html'])) {
     throw new Error('The generated HTML is incomplete. No website source was saved; retry generation.');
   }
-  const cssOpen = (files['styles.css'].match(/\\{/g) || []).length;
-  const cssClose = (files['styles.css'].match(/\\}/g) || []).length;
+  const cssOpen = (files['styles.css'].match(/\{/g) || []).length;
+  const cssClose = (files['styles.css'].match(/\}/g) || []).length;
   if (cssOpen !== cssClose) {
     throw new Error('The generated CSS is incomplete or malformed. No website source was saved; retry generation.');
   }
