@@ -130,6 +130,7 @@ export default function Projects() {
         <nav className="nav">
           <a href="/dashboard">⌕ Research &amp; Leads</a>
           <a className="active" href="/dashboard/projects">▣ Projects &amp; Delivery</a>
+          <a href="/dashboard/website-studio">▧ Website Studio</a>
         </nav>
         <div className="side-bottom">Private agency command centre<br />Owner workspace</div>
       </aside>
@@ -142,6 +143,7 @@ export default function Projects() {
         <nav className="mobile-menu">
           <a href="/dashboard">Research &amp; Leads</a>
           <a className="active" href="/dashboard/projects">Projects &amp; Delivery</a>
+          <a href="/dashboard/website-studio">Website Studio</a>
         </nav>
 
         <section className="metric-grid">
