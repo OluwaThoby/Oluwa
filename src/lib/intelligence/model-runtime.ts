@@ -26,7 +26,7 @@ export interface AgencyModelRuntime {
 }
 
 function outputLimit(request: AgencyTextRequest) {
-  return Math.min(4000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
+  return Math.min(8000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
 }
 
 function validateRequest(request: AgencyTextRequest) {
