@@ -52,6 +52,12 @@ function parsePlan(text: string) {
   if (value.tasks.length < 1 || value.tasks.length > 6) {
     throw new Error('Chief AI must create between one and six specialist tasks. Nothing was saved.');
   }
+  if (typeof value.objective !== 'string' || typeof value.summary !== 'string' ||
+      !Array.isArray(value.ordered_actions) || !value.ordered_actions.every((item: unknown) => typeof item === 'string') ||
+      !Array.isArray(value.assumptions) || !value.assumptions.every((item: unknown) => typeof item === 'string') ||
+      !Array.isArray(value.risks) || !value.risks.every((item: unknown) => typeof item === 'string')) {
+    throw new Error('Chief AI plan is missing clear summary, action, assumption or risk sections. Nothing was saved.');
+  }
   return value;
 }
 
