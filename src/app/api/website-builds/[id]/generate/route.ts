@@ -36,7 +36,7 @@ function extractWebsiteFiles(text: string) {
 
   // Backward-compatible fallback for providers that still return valid JSON.
   const trimmed = text.trim();
-  const candidate = trimmed.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');
+  const candidate = trimmed.replace(/^\x60\x60\x60(?:json)?\s*/i, '').replace(/\s*\x60\x60\x60$/, '');
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
   if (start < 0 || end <= start) {
@@ -83,9 +83,9 @@ function validateFiles(value: unknown) {
     /<iframe\b/i.test(files['index.html']),
     /javascript:/i.test(combined),
     /document\.cookie|localstorage|sessionstorage/i.test(combined),
-    /<form\\b/i.test(files['index.html']),
-    /\\bon[a-z]+\\s*=/i.test(files['index.html']),
-    /\\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\\s*\\(/i.test(files['script.js'] || ''),
+    /<form\b/i.test(files['index.html']),
+    /\bon[a-z]+\s*=/i.test(files['index.html']),
+    /\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(/i.test(files['script.js'] || ''),
   ];
   if (blockers.some(Boolean)) {
     throw new Error('Generated source contains a disallowed script, form, inline event handler, network request, iframe, executable URL or browser storage access.');
