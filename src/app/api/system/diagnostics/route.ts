@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  let owner = '';
   try {
     const { data } = await auth.getSession();
     const email = data?.user?.email?.trim().toLowerCase();
