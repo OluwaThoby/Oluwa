@@ -95,6 +95,10 @@ function validateFiles(value: unknown) {
   if (!/<title>/i.test(files['index.html'])) warnings.push('Missing document title.');
   if (!/<main\b/i.test(files['index.html'])) warnings.push('No main landmark found.');
   if (!/<h1\b/i.test(files['index.html'])) warnings.push('No primary page heading found.');
+  if (!/<nav\b/i.test(files['index.html'])) warnings.push('No primary navigation found.');
+  if (!/<footer\b/i.test(files['index.html'])) warnings.push('No footer found.');
+  if ((files['index.html'].match(/<section\b/gi) || []).length < 2) warnings.push('The page needs more complete content sections.');
+  if (files['styles.css'].trim().length < 600) warnings.push('The visual styling is too limited for a polished business website.');
   if (/lorem ipsum|your company|example\.com|replace me|placeholder/i.test(combined)) {
     warnings.push('Possible placeholder copy remains; review before showing a customer.');
   }
