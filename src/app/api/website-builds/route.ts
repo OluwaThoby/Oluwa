@@ -76,7 +76,7 @@ export async function POST(request: Request) {
         ${complexity},
         'requirements_review',
         ${JSON.stringify({ ...projectBrief, source_project_brief: projects[0].brief })}::jsonb,
-        '${JSON.stringify({ phase: 'not_started', note: 'Chief AI planning and actual code generation are not yet run.' })}'::jsonb,
+        ${JSON.stringify({ phase: 'not_started', note: 'Chief AI planning and actual code generation are not yet run.' })}::jsonb,
         true
       FROM public.projects p
       WHERE p.id = ${projectId}
