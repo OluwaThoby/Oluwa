@@ -19,6 +19,7 @@ const sections = [
   ['Chief AI & agents', '/dashboard/chief-ai'],
   ['Research & leads', '/dashboard/leads'],
   ['Projects & delivery', '/dashboard/projects'],
+  ['Website Studio', '/dashboard/website-studio'],
   ['Clients & retention', '/dashboard/clients'],
   ['Revenue & finance', '/dashboard/revenue'],
   ['SEO intelligence', '/dashboard/seo'],
