@@ -2,7 +2,8 @@
 import {useCallback,useEffect,useMemo,useState} from 'react';
 type Client={id:string;business_name:string;primary_contact:string|null;email:string|null;phone:string|null;status:string;notes:string|null;project_count:number;active_projects:number;blocked_projects:number;last_contact_at:string|null;interaction_count:number};
 type Interaction={id:string;interaction_type:string;summary:string;details:string;occurred_at:string};
-type Project={id:string;name:string;service_type:string;status:string;agreed_value:string|null;currency:string;production_url:string|null;preview_url:string|null};\ntype ChangeRequest={id:string;title:string;description:string;category:string;status:string;customer_visible_note:string;project_name:string};
+type Project={id:string;name:string;service_type:string;status:string;agreed_value:string|null;currency:string;production_url:string|null;preview_url:string|null};
+type ChangeRequest={id:string;title:string;description:string;category:string;status:string;customer_visible_note:string;project_name:string};
 const statuses=['lead','active','paused','completed','former'];
 const pretty=(v:string)=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 export default function Clients(){const [clients,setClients]=useState<Client[]>([]),[selected,setSelected]=useState(''),[profile,setProfile]=useState<any>(null),[projects,setProjects]=useState<Project[]>([]),[interactions,setInteractions]=useState<Interaction[]>([]),[changeRequests,setChangeRequests]=useState<ChangeRequest[]>([]),[portalUrl,setPortalUrl]=useState(''),[search,setSearch]=useState(''),[filter,setFilter]=useState('all'),[summary,setSummary]=useState(''),[details,setDetails]=useState(''),[kind,setKind]=useState('note'),[saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
