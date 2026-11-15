@@ -7,7 +7,7 @@ const SESSION_DAYS = 14;
 export const hashPortalToken = (token: string) => createHash('sha256').update(token).digest('hex');
 export const newPortalToken = () => randomBytes(32).toString('base64url');
 
-export async function getPortalClient(db: ReturnType<typeof neon>) {
+export async function getPortalClient(db: any) {
   const jar = await cookies();
   const token = jar.get(PORTAL_COOKIE)?.value || '';
   if (!/^[A-Za-z0-9_-]{40,100}$/.test(token)) return null;
@@ -18,7 +18,7 @@ export async function getPortalClient(db: ReturnType<typeof neon>) {
     WHERE s.token_hash=${hashPortalToken(token)}
       AND s.revoked_at IS NULL AND s.expires_at>now()
     LIMIT 1
-  `;
+  ` as any[];
   if (!rows[0]) return null;
   await db`UPDATE public.client_portal_sessions SET last_seen_at=now() WHERE id=${rows[0].session_id}`;
   return rows[0] as {id:string;business_name:string;primary_contact:string|null;email:string|null;status:string};
