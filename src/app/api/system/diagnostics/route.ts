@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const { data } = await auth.getSession();
     const email = data?.user?.email?.trim().toLowerCase();
-    const owner = process.env.OWNER_EMAIL?.trim().toLowerCase();
+    owner = process.env.OWNER_EMAIL?.trim().toLowerCase() || '';
     if (!email || !owner || email !== owner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
