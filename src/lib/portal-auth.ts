@@ -27,5 +27,5 @@ export async function getPortalClient(db: ReturnType<typeof neon>) {
 export const portalSessionExpiry = () => new Date(Date.now() + SESSION_DAYS*24*60*60*1000);
 export const portalCookieOptions = (expires: Date) => ({
   httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax' as const,
-  path:'/portal',expires,
+  path:'/',expires,
 });
