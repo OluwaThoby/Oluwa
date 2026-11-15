@@ -22,7 +22,7 @@ export async function GET() {
 
   try {
     const db = neon(process.env.DATABASE_URL);
-    const [tables, planRows, profileRows, providerRows] = await Promise.all([
+    const [tables, planRows, profileRows] = await Promise.all([
       db`SELECT
         to_regclass('public.agent_tasks') IS NOT NULL AS agent_tasks,
         to_regclass('public.agent_task_events') IS NOT NULL AS agent_task_events,
@@ -32,7 +32,6 @@ export async function GET() {
           AND status = 'succeeded' AND output ? 'plan'`,
       db`SELECT version, updated_at FROM public.agency_business_profile
         WHERE owner_email = ${owner} LIMIT 1`,
-      db`SELECT count(*)::int AS count FROM public.provider_integrations`,
     ]);
     const schema = tables[0] as Record<string, boolean>;
     const checks = [
