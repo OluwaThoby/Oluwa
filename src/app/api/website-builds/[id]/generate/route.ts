@@ -14,14 +14,40 @@ async function isOwner() {
     email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase());
 }
 
-function extractJson(text: string) {
+function extractWebsiteFiles(text: string) {
+  // HTML/CSS/JS contain many quotes and newlines. Asking a model to escape all
+  // of that inside JSON is fragile, so use explicit file boundaries instead.
+  const markers = [
+    ['index.html', '<<<INDEX_HTML>>>', '<<<END_INDEX_HTML>>>'],
+    ['styles.css', '<<<STYLES_CSS>>>', '<<<END_STYLES_CSS>>>'],
+    ['script.js', '<<<SCRIPT_JS>>>', '<<<END_SCRIPT_JS>>>'],
+  ] as const;
+  const files: Record<string, string> = {};
+  for (const [name, startMarker, endMarker] of markers) {
+    const start = text.indexOf(startMarker);
+    const end = text.indexOf(endMarker, start + startMarker.length);
+    if (start < 0 && name === 'script.js') continue;
+    if (start < 0 || end < 0) {
+      throw new Error('The AI response was incomplete. Please try generating the website again.');
+    }
+    files[name] = text.slice(start + startMarker.length, end).trim();
+  }
+  if (files['index.html'] && files['styles.css']) return files;
+
+  // Backward-compatible fallback for providers that still return valid JSON.
   const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const fenced = trimmed.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/i);
   const candidate = fenced?.[1] ?? trimmed;
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('The model did not return a JSON website package.');
-  return JSON.parse(candidate.slice(start, end + 1));
+  if (start < 0 || end <= start) {
+    throw new Error('The AI response was incomplete or malformed. Please try generating the website again.');
+  }
+  try {
+    return JSON.parse(candidate.slice(start, end + 1));
+  } catch {
+    throw new Error('The AI returned malformed website source. The build was not saved; please retry.');
+  }
 }
 
 function validateFiles(value: unknown) {
@@ -126,7 +152,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       system: [
         'You are the senior website engineering specialist working under AgencyOS Chief AI.',
         'Create a complete, polished, responsive, production-minded static website starter as source code.',
-        'Return ONLY a JSON object with exactly these string keys: index.html, styles.css, script.js.',
+        'Return exactly three file sections using these literal boundaries, with raw source between them and no JSON, markdown fences or commentary: <<<INDEX_HTML>>> ... <<<END_INDEX_HTML>>> ; <<<STYLES_CSS>>> ... <<<END_STYLES_CSS>>> ; <<<SCRIPT_JS>>> ... <<<END_SCRIPT_JS>>>. The script section may be empty.',
         'The HTML must reference ./styles.css and ./script.js. Include semantic landmarks, accessible labels, mobile navigation if useful, metadata, and real useful content based only on supplied facts.',
         'Never invent client testimonials, certifications, addresses, phone numbers, prices, statistics or awards. If details are absent, use clear neutral copy without fake specifics.',
         'Do not include external scripts, iframes, remote fonts, trackers, analytics, browser storage, payment processing, credential collection or hidden network calls.',
@@ -136,7 +162,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       prompt: 'Build the website from this verified project brief:\n' + JSON.stringify(brief),
     });
 
-    const parsed = extractJson(result.text);
+    const parsed = extractWebsiteFiles(result.text);
     const checked = validateFiles(parsed);
     const qa = {
       status: checked.warnings.length ? 'review_required' : 'passed_basic_checks',
