@@ -8,7 +8,7 @@ type Plan = {
   created_at: string; finished_at: string | null;
 };
 
-const label = (value: string) => value.replace('_', ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+const label = (value: string) => value.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 export default function OperatingPlansPage() {
   const [plans,setPlans]=useState<Plan[]>([]);
