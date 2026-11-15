@@ -1,17 +1,241 @@
 'use client';
-import {useCallback,useEffect,useState} from 'react';
-type Task={id:string;agent_key:string;task_type:string;title:string;instructions:string;status:string;priority:number;requires_approval:boolean;output:any;error_message:string|null;created_at:string;input:any};
-const pretty=(v:string)=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
-export default function ChiefAIPage(){
- const [goal,setGoal]=useState('');const [tasks,setTasks]=useState<Task[]>([]);const [plan,setPlan]=useState<any>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState('');const [error,setError]=useState('');const [notice,setNotice]=useState('');
- const load=useCallback(async()=>{try{const r=await fetch('/api/chief-ai',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load Chief AI.');setTasks(d.tasks||[]);}catch(e){setError(e instanceof Error?e.message:'Could not load tasks.');}finally{setLoading(false);}},[]);
- useEffect(()=>{void load();},[load]);
- async function planWork(e:React.FormEvent){e.preventDefault();setBusy('plan');setError('');setNotice('');try{const r=await fetch('/api/chief-ai',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({goal})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Chief AI could not plan this work.');setPlan(d.plan);setNotice(d.message);setGoal('');await load();}catch(e){setError(e instanceof Error?e.message:'Planning failed.');}finally{setBusy('');}}
- async function execute(id:string){setBusy(id);setError('');setNotice('');try{const r=await fetch('/api/agent-tasks/'+id+'/execute',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Specialist execution failed.');setNotice('Specialist deliverable completed.');await load();}catch(e){setError(e instanceof Error?e.message:'Execution failed.');}finally{setBusy('');}}
- const parents=tasks.filter(t=>t.agent_key==='orchestrator'&&t.task_type==='chief_ai_plan');const children=tasks.filter(t=>t.input?.parent_task_id);
- return <div className="app"><aside className="sidebar"><a className="side-brand" href="/dashboard"><span className="brand-mark">A</span>AgencyOS</a><div className="side-label">WORKSPACE</div><nav className="nav"><a href="/dashboard">Overview</a><a className="active" href="/dashboard/chief-ai">Chief AI &amp; Agents</a><a href="/dashboard/operating-plans">Operating plans</a><a href="/dashboard/projects">Projects &amp; delivery</a><a href="/dashboard/clients">Clients &amp; retention</a></nav><div className="side-bottom">Owner-controlled coordination<br/>Specialist draft execution</div></aside><main className="main"><div className="topbar"><div><div className="eyebrow">EXECUTIVE COORDINATION</div><h1>Chief AI &amp; Specialist Agents</h1><p className="sub">Describe an outcome. Chief AI plans the work, assigns specialists and tracks deliverables.</p></div><span className="owner-pill">● OWNER CONTROLLED</span></div>
- <section className="panel"><h2>Give Chief AI an objective</h2><form onSubmit={planWork} style={{display:'grid',gap:12}}><textarea className="field" rows={4} minLength={5} maxLength={4000} value={goal} onChange={e=>setGoal(e.target.value)} placeholder="e.g. Prepare a complete delivery plan for our next small-business website project…" required/><button className="primary-btn" disabled={busy==='plan'||goal.trim().length<5}>{busy==='plan'?'Chief AI is planning and delegating…':'Plan and delegate work'}</button></form><p className="notice">Chief AI creates a structured plan and specialist tasks. Specialists produce drafts and analysis only. Outreach, payments, publishing, deployments and production changes remain approval-gated.</p>{error&&<p className="error">{error}</p>}{notice&&<p className="success">{notice}</p>}</section>
- {plan&&<section className="panel"><div className="eyebrow">LATEST CHIEF AI PLAN</div><h2>{plan.objective}</h2><p>{plan.summary}</p><h3>Ordered actions</h3><ol>{(plan.ordered_actions||[]).map((x:string,i:number)=><li key={i}>{x}</li>)}</ol><h3>Assumptions &amp; dependencies</h3><ul>{(plan.assumptions||[]).map((x:string,i:number)=><li key={i}>{x}</li>)}</ul><h3>Risks</h3><ul>{(plan.risks||[]).map((x:string,i:number)=><li key={i}>{x}</li>)}</ul></section>}
- <section className="panel"><div className="panel-head"><div><h2>Specialist task queue</h2><p className="sub">Execute queued tasks individually. Tasks awaiting approval cannot run.</p></div><button className="btn" onClick={()=>void load()}>Refresh</button></div>{loading?'Loading agent activity…':children.length?children.map(t=><article key={t.id} style={{padding:14,border:'1px solid var(--line)',borderRadius:10,marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}><b>{t.title}</b><span className="badge">{pretty(t.status)}</span></div><p className="secondary">{pretty(t.agent_key)} · Priority {t.priority} · {pretty(t.task_type)}</p><p>{t.instructions}</p>{t.requires_approval&&<p className="notice">Held for owner approval. No execution has occurred.</p>}{t.output?.deliverable&&<pre style={{whiteSpace:'pre-wrap',background:'#f6f9f7',padding:12,borderRadius:8,fontSize:13}}>{t.output.deliverable}</pre>}{t.error_message&&<p className="error">{t.error_message}</p>}{t.status==='queued'&&!t.requires_approval&&<button className="btn green" disabled={!!busy} onClick={()=>void execute(t.id)}>{busy===t.id?'Working…':'Run specialist'}</button>}</article>):<p className="notice">No delegated tasks yet. Give Chief AI an objective to begin.</p>}</section>
- <section className="panel"><h2>Recent Chief AI runs</h2>{parents.slice(0,10).map(t=><div key={t.id} style={{padding:10,borderBottom:'1px solid var(--line)'}}><b>{t.title}</b><span className="badge" style={{marginLeft:10}}>{pretty(t.status)}</span><p className="secondary">{new Date(t.created_at).toLocaleString()}</p></div>)}</section></main></div>;
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+type Task = {
+  id: string;
+  agent_key: string;
+  task_type: string;
+  title: string;
+  instructions: string;
+  status: string;
+  priority: number;
+  requires_approval: boolean;
+  output: any;
+  error_message: string | null;
+  created_at: string;
+  input: any;
+};
+
+const agentNames: Record<string, string> = {
+  research: 'Research specialist',
+  seo: 'SEO specialist',
+  sales: 'Sales specialist',
+  development: 'Website development specialist',
+  client_ops: 'Client support specialist',
+  finance: 'Finance specialist',
+};
+
+const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+const dateLabel = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
+};
+
+export default function ChiefAIPage() {
+  const [goal, setGoal] = useState('');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const response = await fetch('/api/chief-ai', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load Chief AI activity.');
+      const rows = Array.isArray(data.tasks) ? data.tasks : [];
+      setTasks(rows);
+      const latestParent = rows.find((task: Task) => task.agent_key === 'orchestrator' && task.task_type === 'chief_ai_plan');
+      setSelectedParentId((current) => current || latestParent?.id || '');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load Chief AI activity.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const parents = useMemo(
+    () => tasks.filter((task) => task.agent_key === 'orchestrator' && task.task_type === 'chief_ai_plan'),
+    [tasks],
+  );
+  const activeParent = parents.find((task) => task.id === selectedParentId) || parents[0];
+  const plan = activeParent?.output?.plan;
+  const children = tasks.filter((task) => task.input?.parent_task_id === activeParent?.id);
+
+  async function planWork(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy('plan');
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/chief-ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ goal }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Chief AI could not create this plan.');
+      setSelectedParentId(data.parent_task_id || '');
+      setGoal('');
+      setNotice('Your new plan is ready. The task list below now shows only work belonging to this plan.');
+      await load();
+      if (data.parent_task_id) setSelectedParentId(data.parent_task_id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Planning failed.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function execute(id: string) {
+    setBusy(id);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/agent-tasks/' + id + '/execute', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Specialist execution failed.');
+      setNotice('The specialist has finished its draft. Review the result below before using it.');
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Execution failed.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <a className="side-brand" href="/dashboard"><span className="brand-mark">A</span>AgencyOS</a>
+        <div className="side-label">WORKSPACE</div>
+        <nav className="nav">
+          <a href="/dashboard">Overview</a>
+          <a className="active" href="/dashboard/chief-ai">Chief AI &amp; Agents</a>
+          <a href="/dashboard/operating-plans">Operating plans</a>
+          <a href="/dashboard/projects">Projects &amp; delivery</a>
+          <a href="/dashboard/clients">Clients &amp; retention</a>
+        </nav>
+        <div className="side-bottom">Owner-controlled coordination<br />Specialist draft execution</div>
+      </aside>
+
+      <main className="main">
+        <div className="topbar">
+          <div>
+            <div className="eyebrow">YOUR AGENCY ASSISTANT</div>
+            <h1>Chief AI &amp; Specialist Agents</h1>
+            <p className="sub">Tell Chief AI what outcome you want. It breaks the work into clear steps and assigns the right specialists.</p>
+          </div>
+          <span className="owner-pill">● OWNER CONTROLLED</span>
+        </div>
+
+        <section className="panel">
+          <h2>What should the agency work on?</h2>
+          <form onSubmit={planWork} style={{ display: 'grid', gap: 12 }}>
+            <textarea
+              className="field"
+              rows={4}
+              minLength={5}
+              maxLength={4000}
+              value={goal}
+              onChange={(event) => setGoal(event.target.value)}
+              placeholder="Example: Help me prepare a clear plan to find and win our next website design client."
+              required
+            />
+            <button className="primary-btn" disabled={busy === 'plan' || goal.trim().length < 5}>
+              {busy === 'plan' ? 'Preparing your plan…' : 'Create my plan'}
+            </button>
+          </form>
+          <p className="notice">Chief AI plans and prepares draft work. It does not contact customers, spend money, publish websites or change live systems without your approval.</p>
+          {error && <p className="error" role="alert">{error}</p>}
+          {notice && <p className="success" role="status">{notice}</p>}
+        </section>
+
+        {parents.length > 0 && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Your plans</h2>
+                <p className="sub">Choose a plan to see only the tasks created for that request. Older tasks from other requests are kept in their own history.</p>
+              </div>
+              <button className="btn" onClick={() => void load()} disabled={loading}>Refresh</button>
+            </div>
+            <label style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>
+              Plan history
+              <select className="field" style={{ marginTop: 7 }} value={activeParent?.id || ''} onChange={(event) => setSelectedParentId(event.target.value)}>
+                {parents.map((item) => <option key={item.id} value={item.id}>{dateLabel(item.created_at)} · {item.title}</option>)}
+              </select>
+            </label>
+            {plan && (
+              <div style={{ marginTop: 20 }}>
+                <div className="eyebrow">PLAN SUMMARY</div>
+                <h2 style={{ marginTop: 7 }}>{plan.objective || activeParent?.title}</h2>
+                <p style={{ lineHeight: 1.7 }}>{plan.summary || 'No summary was provided.'}</p>
+                <h3>What happens next</h3>
+                <ol style={{ lineHeight: 1.8, paddingLeft: 22 }}>
+                  {(plan.ordered_actions || []).map((item: string, index: number) => <li key={index}>{item}</li>)}
+                </ol>
+                {(plan.assumptions || []).length > 0 && <>
+                  <h3>Things we still need to confirm</h3>
+                  <ul style={{ lineHeight: 1.8, paddingLeft: 22 }}>{plan.assumptions.map((item: string, index: number) => <li key={index}>{item}</li>)}</ul>
+                </>}
+                {(plan.risks || []).length > 0 && <>
+                  <h3>Things to watch out for</h3>
+                  <ul style={{ lineHeight: 1.8, paddingLeft: 22 }}>{plan.risks.map((item: string, index: number) => <li key={index}>{item}</li>)}</ul>
+                </>}
+                <p className="notice">This is a proposed plan, not proof that the work has been completed. Any missing business information must be checked before acting on it.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Work for this plan</h2>
+              <p className="sub">These are the specialist tasks connected to the plan currently selected above.</p>
+            </div>
+            <span className="badge">{children.length} task(s)</span>
+          </div>
+          {loading ? <p>Loading your agency work…</p> : !activeParent ? (
+            <p className="notice">No plans yet. Describe a goal above and Chief AI will prepare the first one.</p>
+          ) : children.length === 0 ? (
+            <p className="notice">No specialist tasks were attached to this plan.</p>
+          ) : children.map((task) => (
+            <article key={task.id} style={{ padding: 14, border: '1px solid var(--line)', borderRadius: 10, marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <b>{task.title}</b>
+                <span className="badge">{pretty(task.status)}</span>
+              </div>
+              <p className="secondary">{agentNames[task.agent_key] || pretty(task.agent_key)} · {pretty(task.task_type)}</p>
+              {task.requires_approval && <p className="notice">Waiting for your approval. This task has not been carried out.</p>}
+              {task.output?.deliverable && (
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, background: '#f6f9f7', padding: 12, borderRadius: 8, fontSize: 13 }}>
+                  {typeof task.output.deliverable === 'string' ? task.output.deliverable : JSON.stringify(task.output.deliverable, null, 2)}
+                </div>
+              )}
+              {task.error_message && <p className="error">{task.error_message}</p>}
+              <details style={{ marginTop: 10 }}>
+                <summary style={{ cursor: 'pointer', color: '#52645a', fontSize: 12 }}>Show task instructions</summary>
+                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13 }}>{task.instructions}</p>
+              </details>
+              {task.status === 'queued' && !task.requires_approval && (
+                <button className="btn green" disabled={!!busy} onClick={() => void execute(task.id)} style={{ marginTop: 10 }}>
+                  {busy === task.id ? 'Working…' : 'Prepare this task'}
+                </button>
+              )}
+            </article>
+          ))}
+        </section>
+
+        {parents.length === 0 && !loading && <section className="panel"><p className="notice">No saved plans yet. Start by describing the result you want Chief AI to help you achieve.</p></section>}
+      </main>
+    </div>
+  );
 }
