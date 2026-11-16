@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/lib/auth';
+import { getAgencyModelRuntimeReadiness } from '@/lib/intelligence/runtime-config.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export async function GET() {
         to_regclass('public.agent_task_events') IS NOT NULL AS agent_task_events,
         to_regclass('public.agency_business_profile') IS NOT NULL AS business_profile`,
       db`SELECT count(*)::int AS count FROM public.agent_tasks
-        WHERE agent_key = 'orchestrator' AND task_type = 'strategic_plan'
+        WHERE agent_key = 'orchestrator' AND task_type IN ('strategic_plan','chief_ai_plan')
           AND status = 'succeeded' AND output ? 'plan'`,
       db`SELECT version, updated_at FROM public.agency_business_profile
         WHERE owner_email = ${owner} LIMIT 1`,
@@ -43,7 +44,7 @@ export async function GET() {
       { id: 'plans', label: 'Saved operating plans', ok: Number(planRows[0]?.count ?? 0) > 0, detail: `${Number(planRows[0]?.count ?? 0)} saved strategic plan(s) found.` },
       { id: 'profile_data', label: 'Business Profile data', ok: Boolean(profileRows[0]), detail: profileRows[0] ? `Profile version ${profileRows[0].version} is saved.` : 'No business profile has been saved yet. This is setup work, not a system failure.' },
       { id: 'owner_email', label: 'Owner configuration', ok: Boolean(owner), detail: 'Owner access configuration is present.' },
-      { id: 'ai_provider', label: 'AI provider configuration', ok: Boolean(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY), detail: 'At least one supported AI provider key is configured.' },
+      { id: 'ai_provider', label: 'AI provider configuration', ok: getAgencyModelRuntimeReadiness().configured, detail: getAgencyModelRuntimeReadiness().configured ? 'The explicitly selected AI runtime has the required configuration.' : 'The selected AI runtime is missing required configuration. Check System Health → Integration Readiness.' },
     ];
     return NextResponse.json({
       status: checks.every(c => c.ok || c.id === 'profile_data') ? 'operational' : 'attention_required',
