@@ -6,7 +6,7 @@ import { classifyRequestedActions } from '@/lib/intelligence/execution-policy.mj
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_AGENTS = new Set([
-  'orchestrator', 'research', 'seo', 'sales',
+  'orchestrator', 'research', 'seo', 'sales', 'marketing',
   'development', 'client_ops', 'finance',
 ]);
 
