@@ -20,17 +20,30 @@ export async function GET() {
       db`SELECT id, title, instructions, input, output, status, created_at, finished_at
           FROM public.agent_tasks
           WHERE agent_key = 'orchestrator' AND task_type = 'strategic_plan'
+            AND task_type IN ('strategic_plan','chief_ai_plan')
             AND status = 'succeeded' AND output ? 'plan'
           ORDER BY created_at DESC LIMIT 50`,
       db`SELECT version FROM public.agency_business_profile
           WHERE owner_email = ${process.env.OWNER_EMAIL} LIMIT 1`,
     ]);
     return NextResponse.json({
-      plans: (plans as any[]).map(row => ({
-        ...row,
-        planStatus: ['draft','under_review','approved','archived'].includes(row.output?.planStatus)
-          ? row.output.planStatus : 'draft',
-      })),
+      plans: (plans as any[]).map(row => {
+        const rawPlan = row.output?.plan;
+        const planText = typeof rawPlan === 'string' ? rawPlan : rawPlan && typeof rawPlan === 'object'
+          ? [
+              '## Objective', rawPlan.objective || row.title || 'Agency operating plan',
+              '## Summary', rawPlan.summary || 'No summary was provided.',
+              '## Ordered actions', ...(Array.isArray(rawPlan.ordered_actions) ? rawPlan.ordered_actions.map((item: string, index: number) => (index + 1) + '. ' + item) : []),
+              '## Assumptions to confirm', ...(Array.isArray(rawPlan.assumptions) ? rawPlan.assumptions.map((item: string) => '• ' + item) : []),
+              '## Risks to manage', ...(Array.isArray(rawPlan.risks) ? rawPlan.risks.map((item: string) => '• ' + item) : []),
+            ].join('\\n\\n') : '';
+        return {
+          ...row,
+          output: { ...(row.output || {}), plan: planText },
+          planStatus: ['draft','under_review','approved','archived'].includes(row.output?.planStatus)
+            ? row.output.planStatus : 'draft',
+        };
+      }),
       currentProfileVersion: (profile as any[])[0]?.version ?? null,
     });
   } catch {
@@ -55,7 +68,7 @@ export async function PATCH(request: Request) {
         SET output = jsonb_set(COALESCE(output, '{}'::jsonb), '{planStatus}', to_jsonb(${status}::text), true),
             updated_at = NOW()
         WHERE id = ${id} AND agent_key = 'orchestrator'
-          AND task_type = 'strategic_plan' AND status = 'succeeded'
+          AND task_type IN ('strategic_plan','chief_ai_plan') AND status = 'succeeded'
         RETURNING id, title, output
       ), logged AS (
         INSERT INTO public.agent_task_events (task_id, event_type, details)
