@@ -99,6 +99,11 @@ function validateFiles(value: unknown) {
   if (!/<footer\b/i.test(files['index.html'])) warnings.push('No footer found.');
   if ((files['index.html'].match(/<section\b/gi) || []).length < 2) warnings.push('The page needs more complete content sections.');
   if (files['styles.css'].trim().length < 600) warnings.push('The visual styling is too limited for a polished business website.');
+  if (!/@media\\s*\\([^)]*(?:max-width|width\\s*<=)/i.test(files['styles.css'])) warnings.push('No mobile CSS breakpoint was detected; check the layout on a narrow screen.');
+  if (/@media[\\s\\S]*?(?:\\.site-nav|nav)[^{]*\\{[^}]*display\\s*:\\s*none/i.test(files['styles.css']) &&
+      !/mobile[-_ ]?menu|aria-label=["']mobile/i.test(files['index.html'])) {
+    warnings.push('The navigation may disappear on mobile without an accessible replacement.');
+  }
   if (/lorem ipsum|your company|example\.com|replace me|placeholder/i.test(combined)) {
     warnings.push('Possible placeholder copy remains; review before showing a customer.');
   }
@@ -123,10 +128,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No generated source is available yet.' }, { status: 404 });
     }
     const checked = validateFiles(rows[0].generated_files);
-    if (checked.warnings.length) {
-      return NextResponse.json({ error: 'This saved draft has not passed the current preview checks. Regenerate it before previewing.', warnings: checked.warnings }, { status: 409 });
-    }
-    return NextResponse.json({ build: rows[0] });
+    // Quality warnings require owner review but do not block a safe preview.
+    // Structural and security failures still throw from validateFiles.
+    return NextResponse.json({ build: rows[0], warnings: checked.warnings });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load the private website source.';
     return NextResponse.json({ error: 'This saved draft failed the current safety checks. Regenerate it before previewing. ' + message.slice(0, 240) }, { status: 409 });
@@ -176,7 +180,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       maxOutputTokens: 8000,
       system: [
         'You are the senior website engineering specialist working under AgencyOS Chief AI.',
-        'Create a visually polished, responsive static website draft for a real business. This is a front-end draft only, not a production-ready application or live site. Use a premium modern visual system: clean light background, strong readable contrast, generous whitespace, consistent max-width containers, carefully spaced typography, a distinctive hero, clear navigation, a primary call to action, at least three useful content sections and a considered footer. Avoid generic placeholder layouts, excessive cards, random gradients and cramped mobile layouts.',
+        'Create a visually polished, responsive static website draft. This is a front-end draft only, not a production-ready application or live site. Use a premium modern visual system: clean light background, strong readable contrast, generous whitespace, consistent max-width containers, carefully spaced typography, a distinctive hero, clear navigation, a primary call to action, at least three useful content sections and a considered footer. Avoid generic placeholder layouts, excessive cards, random gradients and cramped mobile layouts.',
+        'FACTUAL ACCURACY IS MORE IMPORTANT THAN MARKETING COPY: use only business facts explicitly present in the supplied brief. A broad category such as freight forwarding, construction, consulting or healthcare is not proof of exact services, operating methods, coverage, certifications, guarantees or capabilities. Do not infer them. When detail is missing, use neutral wording such as “Service details to be confirmed” or clearly label a section “Proposed areas to confirm”; never state an unverified capability as fact.',
+        'Mobile navigation must remain usable at every width. Do not hide the only navigation menu at mobile breakpoints. If you provide a mobile menu, implement it with addEventListener in script.js and an accessible button; otherwise wrap or stack navigation links. Include a real CSS mobile breakpoint.',
         'Return exactly three file sections using these literal boundaries, with raw source between them and no JSON, markdown fences or commentary: <<<INDEX_HTML>>> ... <<<END_INDEX_HTML>>> ; <<<STYLES_CSS>>> ... <<<END_STYLES_CSS>>> ; <<<SCRIPT_JS>>> ... <<<END_SCRIPT_JS>>>. The script section may be empty.',
         'The HTML must reference ./styles.css and ./script.js. Include semantic landmarks, accessible labels, mobile navigation if useful, metadata, and real useful content based only on supplied facts.',
         'Never invent client testimonials, certifications, addresses, phone numbers, prices, statistics or awards. If details are absent, use clear neutral copy without fake specifics.',
