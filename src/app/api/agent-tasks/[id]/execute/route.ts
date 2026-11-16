@@ -252,7 +252,9 @@ Shared context policy: every agent uses the same owner-controlled AgencyOS busin
         maxOutputTokens: 1800,
       });
 
+      const qualityReview = reviewDraftQuality(result.text, policyAgentKey, agencyProfileContext);
       const output = {
+        qualityReview,
         deliverable: result.text,
         model: result.model,
         mode: 'draft_only',
