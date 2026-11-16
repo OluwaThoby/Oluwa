@@ -120,7 +120,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const db = neon(process.env.DATABASE_URL);
     const rows = await db`
-      SELECT id, status, generated_files, qa_report, model_used, generated_at
+      SELECT id, status, brief, generated_files, qa_report, model_used, generated_at
       FROM public.website_builds WHERE id = ${id} LIMIT 1
     `;
     if (!rows[0]) return NextResponse.json({ error: 'Website build not found.' }, { status: 404 });
@@ -128,6 +128,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No generated source is available yet.' }, { status: 404 });
     }
     const checked = validateFiles(rows[0].generated_files);
+    const savedBrief = rows[0].brief && typeof rows[0].brief === 'object'
+      ? rows[0].brief as Record<string, unknown> : {};
+    if (String(savedBrief.owner_notes || '').trim().length < 40) {
+      checked.warnings.push('The build has no detailed owner-confirmed business brief. Verify every business-specific claim and add confirmed requirements before showing this draft to a customer.');
+    }
     // Quality warnings require owner review but do not block a safe preview.
     // Structural and security failures still throw from validateFiles.
     return NextResponse.json({ build: rows[0], warnings: checked.warnings });
