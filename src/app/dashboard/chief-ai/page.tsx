@@ -110,6 +110,23 @@ export default function ChiefAIPage() {
     }
   }
 
+  async function taskAction(id: string, action: 'approve' | 'retry') {
+    setBusy(id);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/agent-tasks/' + id + '/' + action, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'The task could not be updated.');
+      setNotice(data.message || 'Task updated.');
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Task update failed.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -225,9 +242,22 @@ export default function ChiefAIPage() {
                 <summary style={{ cursor: 'pointer', color: '#52645a', fontSize: 12 }}>Show task instructions</summary>
                 <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13 }}>{task.instructions}</p>
               </details>
+              {task.status === 'waiting_approval' && task.requires_approval && (
+                <>
+                  <p className="notice">Approval here only releases the specialist to prepare a draft. It does not authorise sending messages, publishing, spending money or changing live systems.</p>
+                  <button className="btn green" disabled={!!busy} onClick={() => void taskAction(task.id, 'approve')} style={{ marginTop: 10 }}>
+                    {busy === task.id ? 'Approving…' : 'Approve draft preparation'}
+                  </button>
+                </>
+              )}
               {task.status === 'queued' && !task.requires_approval && (
                 <button className="btn green" disabled={!!busy} onClick={() => void execute(task.id)} style={{ marginTop: 10 }}>
                   {busy === task.id ? 'Working…' : 'Prepare this task'}
+                </button>
+              )}
+              {task.status === 'failed' && !task.requires_approval && (
+                <button className="btn green" disabled={!!busy} onClick={() => void taskAction(task.id, 'retry')} style={{ marginTop: 10 }}>
+                  {busy === task.id ? 'Retrying…' : 'Retry task'}
                 </button>
               )}
             </article>
