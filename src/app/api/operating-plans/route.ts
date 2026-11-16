@@ -68,6 +68,11 @@ export async function PATCH(request: Request) {
             updated_at = NOW()
         WHERE id = ${id} AND agent_key = 'orchestrator'
           AND task_type IN ('strategic_plan','chief_ai_plan') AND status = 'succeeded'
+          AND (\${status} <> 'approved' OR
+            (output->>'businessProfileVersion') IS NOT DISTINCT FROM (
+              SELECT version::text FROM public.agency_business_profile
+              WHERE owner_email = \${process.env.OWNER_EMAIL} LIMIT 1
+            ))
         RETURNING id, title, output
       ), logged AS (
         INSERT INTO public.agent_task_events (task_id, event_type, details)
@@ -77,7 +82,7 @@ export async function PATCH(request: Request) {
       )
       SELECT updated.id, updated.output FROM updated JOIN logged ON logged.task_id = updated.id
     `;
-    if (!(changed as any[])[0]) return NextResponse.json({ error: 'Plan not found or not eligible for review.' }, { status: 404 });
+    if (!(changed as any[])[0]) return NextResponse.json({ error: status === 'approved' ? 'This plan uses an outdated business profile. Update your profile and create a fresh plan before approving it.' : 'Plan not found or not eligible for review.' }, { status: status === 'approved' ? 409 : 404 });
     return NextResponse.json({ message: 'Plan status updated.', plan: changed[0] });
   } catch {
     return NextResponse.json({ error: 'Unable to update plan status.' }, { status: 500 });
