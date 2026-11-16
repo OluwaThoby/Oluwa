@@ -26,7 +26,7 @@ const agentNames: Record<string, string> = {
   finance: 'Finance specialist',
 };
 
-const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const dateLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString();
