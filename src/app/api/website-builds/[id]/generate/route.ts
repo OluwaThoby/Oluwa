@@ -99,6 +99,7 @@ function validateFiles(value: unknown) {
   if (!/<footer\b/i.test(files['index.html'])) warnings.push('No footer found.');
   if ((files['index.html'].match(/<section\b/gi) || []).length < 2) warnings.push('The page needs more complete content sections.');
   if (files['styles.css'].trim().length < 600) warnings.push('The visual styling is too limited for a polished business website.');
+  if (/\b\d+(?:\.\d+)?srem\b/i.test(files['styles.css'])) warnings.push('A likely invalid CSS length unit was found; inspect the affected spacing or sizing rule.');
   if (!/@media\s*\([^)]*(?:max-width|width\s*<=)/i.test(files['styles.css'])) warnings.push('No mobile CSS breakpoint was detected; check the layout on a narrow screen.');
   if (/@media[\s\S]*?(?:\.site-nav|nav)[^{]*\{[^}]*display\s*:\s*none/i.test(files['styles.css']) &&
       !/mobile[-_ ]?menu|aria-label=["']mobile/i.test(files['index.html'])) {
@@ -213,6 +214,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         sourceSizeWithinLimits: true,
         noRemoteScriptsIframesOrBrowserStorage: true,
         responsiveViewport: !checked.warnings.includes('Missing responsive viewport metadata.'),
+        cssLengthUnits: !checked.warnings.includes('A likely invalid CSS length unit was found; inspect the affected spacing or sizing rule.'),
         mobileCssBreakpoint: !checked.warnings.includes('No mobile CSS breakpoint was detected; check the layout on a narrow screen.'),
         mobileNavigationAvailable: !checked.warnings.includes('The navigation may disappear on mobile without an accessible replacement.'),
         verifiedBusinessBrief: ownerNotes.length >= 40,
