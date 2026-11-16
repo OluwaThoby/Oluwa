@@ -23,7 +23,7 @@ export default function WebsiteStudioPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingId, setGeneratingId] = useState('');
-  const [preview, setPreview] = useState<{ id: string; html: string } | null>(null);
+  const [preview, setPreview] = useState<{ id: string; html: string; warnings: string[] } | null>(null);
   const [previewLoadingId, setPreviewLoadingId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -97,7 +97,9 @@ export default function WebsiteStudioPage() {
       html = html.replace(/<script[^>]+src=["']\.\/script\.js["'][^>]*><\/script>/i, '');
       html = html.replace('</head>', `${policy}<style>${css}</style></head>`);
       html = html.replace('</body>', `<script>${js}</script></body>`);
-      setPreview({ id: buildId, html });
+      const qaWarnings = Array.isArray(data.build?.qa_report?.warnings) ? data.build.qa_report.warnings : [];
+      const sourceWarnings = Array.isArray(data.warnings) ? data.warnings : [];
+      setPreview({ id: buildId, html, warnings: [...new Set([...qaWarnings, ...sourceWarnings])] });
       window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not load preview.');
@@ -188,7 +190,7 @@ export default function WebsiteStudioPage() {
           </section>
         </section>
 
-        {preview && <section ref={previewRef} style={{ marginTop: 20, background: '#fff', border: '1px solid #dfe8e1', borderRadius: 16, padding: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><strong>Your website draft preview</strong><div style={{ color: '#68756d', fontSize: 12, marginTop: 4 }}>This is the actual generated page, shown safely inside AgencyOS. It is not published or connected to a live domain.</div></div><button type="button" onClick={() => setPreview(null)} style={{ border: '1px solid #dce6df', borderRadius: 8, background: '#fff', padding: '7px 10px' }}>Close</button></div><iframe title="Generated website preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={preview.html} style={{ width: '100%', height: 620, border: '1px solid #e1e8e3', borderRadius: 10, marginTop: 12, background: '#fff' }} /></section>}
+        {preview && <section ref={previewRef} style={{ marginTop: 20, background: '#fff', border: '1px solid #dfe8e1', borderRadius: 16, padding: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><div><strong>Your website draft preview</strong><div style={{ color: '#68756d', fontSize: 12, marginTop: 4 }}>This is the actual generated page, shown safely inside AgencyOS. It is not published or connected to a live domain.</div></div><button type="button" onClick={() => setPreview(null)} style={{ border: '1px solid #dce6df', borderRadius: 8, background: '#fff', padding: '7px 10px' }}>Close</button></div>{preview.warnings.length > 0 && <div role="status" style={{ marginTop: 12, padding: 13, borderRadius: 10, background: '#fff8e9', border: '1px solid #f0d9a8', color: '#76521d' }}><strong style={{ display: 'block', marginBottom: 6, fontSize: 13 }}>Review these items before customer use</strong><ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, lineHeight: 1.6 }}>{preview.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}<iframe title="Generated website preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={preview.html} style={{ width: '100%', height: 620, border: '1px solid #e1e8e3', borderRadius: 10, marginTop: 12, background: '#fff' }} /></section>}
 
         <section style={{ marginTop: 20, background: '#eef3ef', border: '1px solid #dfe8e1', borderRadius: 16, padding: 18 }}>
           <strong style={{ fontSize: 13 }}>Production safety is intentional</strong>
