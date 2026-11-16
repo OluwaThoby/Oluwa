@@ -203,6 +203,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         sourceSizeWithinLimits: true,
         noRemoteScriptsIframesOrBrowserStorage: true,
         responsiveViewport: !checked.warnings.includes('Missing responsive viewport metadata.'),
+        mobileCssBreakpoint: !checked.warnings.includes('No mobile CSS breakpoint was detected; check the layout on a narrow screen.'),
+        mobileNavigationAvailable: !checked.warnings.includes('The navigation may disappear on mobile without an accessible replacement.'),
         semanticMain: !checked.warnings.includes('No main landmark found.'),
         primaryHeading: !checked.warnings.includes('No primary page heading found.'),
       },
