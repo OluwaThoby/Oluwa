@@ -19,8 +19,7 @@ export async function GET() {
     const [plans, profile] = await Promise.all([
       db`SELECT id, title, instructions, input, output, status, created_at, finished_at
           FROM public.agent_tasks
-          WHERE agent_key = 'orchestrator' AND task_type = 'strategic_plan'
-            AND task_type IN ('strategic_plan','chief_ai_plan')
+          WHERE agent_key = 'orchestrator' AND task_type IN ('strategic_plan','chief_ai_plan')
             AND status = 'succeeded' AND output ? 'plan'
           ORDER BY created_at DESC LIMIT 50`,
       db`SELECT version FROM public.agency_business_profile
@@ -36,7 +35,7 @@ export async function GET() {
               '## Ordered actions', ...(Array.isArray(rawPlan.ordered_actions) ? rawPlan.ordered_actions.map((item: string, index: number) => (index + 1) + '. ' + item) : []),
               '## Assumptions to confirm', ...(Array.isArray(rawPlan.assumptions) ? rawPlan.assumptions.map((item: string) => '• ' + item) : []),
               '## Risks to manage', ...(Array.isArray(rawPlan.risks) ? rawPlan.risks.map((item: string) => '• ' + item) : []),
-            ].join('\\n\\n') : '';
+            ].join('\n\n') : '';
         return {
           ...row,
           output: { ...(row.output || {}), plan: planText },
