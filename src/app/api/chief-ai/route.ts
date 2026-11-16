@@ -7,7 +7,7 @@ import { loadAgencyBusinessContext } from '@/lib/intelligence/business-context';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const AGENTS = new Set(['research','seo','sales','development','client_ops','finance']);
+const AGENTS = new Set(['research','seo','sales','marketing','development','client_ops','finance']);
 const SENSITIVE = /\b(send|sending|dispatch|publish|publishing|deploy|deployment|payment|pay|purchase|buy|spend|spending|delete|destroy|production_change|campaign_launch|launch_campaign|refund|charge|transfer|withdraw|issue_invoice|create_invoice|change_dns|change_domain|modify_live|update_live|email_customer|contact_prospect)\b/i;
 
 async function isOwner() {
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       system: [
         'You are Chief AI, the executive coordinator of AgencyOS, a professional digital agency.',
         'Turn the owner goal into a practical execution plan and a small set of specialist work packages.',
-        'Specialists available: research, seo, sales, development, client_ops, finance.',
+        'Specialists available: research, seo, sales, marketing, development, client_ops, finance.',
         'Return ONLY valid JSON with keys: objective (string), summary (string), assumptions (string array), ordered_actions (string array), risks (string array), tasks (array).',
         'Each task must have agent_key, title, task_type, instructions, priority. Create 1 to 6 useful tasks, avoid duplicate responsibilities, and make tasks independently actionable.',
         'Choose only a specialist whose role fits. Use task_type general unless prospect_research, prospect_qualification, seo_monitoring, report_generation or client_followup clearly fits.',
