@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const AGENTS = new Set(['research','seo','sales','development','client_ops','finance']);
-const SENSITIVE = /\b(send|publish|deploy|payment|pay|purchase|buy|spend|delete|destroy|refund|charge|transfer|withdraw|invoice|change_dns|modify_live|contact_prospect|email_customer|production)\b/i;
+const SENSITIVE = /\b(send|publish|deploy|payment|pay|purchase|buy|spend|delete|destroy|refund|charge|transfer|withdraw|invoice|change_dns|modify_live|contact|outreach|email|call|message|negotiate|sign|contract|production)\b/i;
 
 async function isOwner() {
   const { data } = await auth.getSession();
