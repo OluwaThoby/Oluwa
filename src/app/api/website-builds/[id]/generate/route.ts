@@ -195,6 +195,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
     const parsed = extractWebsiteFiles(result.text);
     const checked = validateFiles(parsed);
+    const ownerNotes = build.brief && typeof build.brief === 'object'
+      ? String((build.brief as Record<string, unknown>).owner_notes || '').trim() : '';
+    if (ownerNotes.length < 40) {
+      checked.warnings.push('The build has no detailed owner-confirmed business brief. Verify every business-specific claim and add confirmed requirements before showing this draft to a customer.');
+    }
     const qa = {
       status: checked.warnings.length ? 'review_required' : 'passed_basic_checks',
       checks: {
@@ -205,6 +210,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         responsiveViewport: !checked.warnings.includes('Missing responsive viewport metadata.'),
         mobileCssBreakpoint: !checked.warnings.includes('No mobile CSS breakpoint was detected; check the layout on a narrow screen.'),
         mobileNavigationAvailable: !checked.warnings.includes('The navigation may disappear on mobile without an accessible replacement.'),
+        verifiedBusinessBrief: ownerNotes.length >= 40,
         semanticMain: !checked.warnings.includes('No main landmark found.'),
         primaryHeading: !checked.warnings.includes('No primary page heading found.'),
       },
