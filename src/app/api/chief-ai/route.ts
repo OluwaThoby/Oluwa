@@ -128,7 +128,9 @@ export async function POST(request: Request) {
     const parentTitle = String(plan.objective || goal).replace(/\s+/g,' ').slice(0,170) || 'Chief AI execution plan';
     const parentOutput = {
       plan: { objective:String(plan.objective||goal), summary:String(plan.summary||''), assumptions:Array.isArray(plan.assumptions)?plan.assumptions.slice(0,12):[], ordered_actions:Array.isArray(plan.ordered_actions)?plan.ordered_actions.slice(0,20):[], risks:Array.isArray(plan.risks)?plan.risks.slice(0,12):[] },
-      model:result.model, businessProfileStatus:businessContext.profileStatus, generatedAt:new Date().toISOString()
+      model:result.model, businessProfileStatus:businessContext.profileStatus,
+      businessProfileVersion:typeof businessContext.profileVersion === 'number' ? businessContext.profileVersion : null,
+      generatedAt:new Date().toISOString()
     };
     const rows = await db`
       WITH parent AS (
