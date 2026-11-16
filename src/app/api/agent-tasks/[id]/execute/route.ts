@@ -120,7 +120,9 @@ export async function POST(
       }, { status: 409 });
     }
 
-    // Older plans occasionally labelled content-strategy work as sales. Route by the actual work type so it receives the correct specialist policy.\n    const policyAgentKey = task.agent_key === 'sales' && /\\b(marketing|instagram|social media|content calendar)\\b/i.test(`${task.title} ${task.instructions}`) ? 'marketing' : task.agent_key;\n    const agentSystem = AGENT_INSTRUCTIONS[policyAgentKey];
+    // Older plans occasionally labelled content-strategy work as sales. Route by the actual work type so it receives the correct specialist policy.
+    const policyAgentKey = task.agent_key === 'sales' && /\\b(marketing|instagram|social media|content calendar)\\b/i.test(`${task.title} ${task.instructions}`) ? 'marketing' : task.agent_key;
+    const agentSystem = AGENT_INSTRUCTIONS[policyAgentKey];
     if (!agentSystem) {
       return NextResponse.json({ error: 'No execution policy exists for this agent.' }, { status: 400 });
     }
