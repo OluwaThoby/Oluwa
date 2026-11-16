@@ -21,6 +21,7 @@ const agentNames: Record<string, string> = {
   research: 'Research specialist',
   seo: 'SEO specialist',
   sales: 'Sales specialist',
+  marketing: 'Marketing specialist',
   development: 'Website development specialist',
   client_ops: 'Client support specialist',
   finance: 'Finance specialist',
@@ -232,6 +233,14 @@ export default function ChiefAIPage() {
               </div>
               <p className="secondary">{agentNames[task.agent_key] || pretty(task.agent_key)} · {pretty(task.task_type)}</p>
               {task.requires_approval && <p className="notice">Waiting for your approval. This task has not been carried out.</p>}
+              {task.output?.qualityReview && (
+                <div className="notice" style={{ marginTop: 10, borderLeft: '4px solid #b7791f' }}>
+                  <b>Quality control: Owner review required — not client-ready.</b>
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+                    {(task.output.qualityReview.findings || []).map((finding: string, index: number) => <li key={index}>{finding}</li>)}
+                  </ul>
+                </div>
+              )}
               {task.output?.deliverable && (
                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, background: '#f6f9f7', padding: 12, borderRadius: 8, fontSize: 13 }}>
                   {typeof task.output.deliverable === 'string' ? task.output.deliverable : JSON.stringify(task.output.deliverable, null, 2)}
