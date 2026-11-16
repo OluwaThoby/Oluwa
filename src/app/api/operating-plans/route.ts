@@ -68,10 +68,10 @@ export async function PATCH(request: Request) {
             updated_at = NOW()
         WHERE id = ${id} AND agent_key = 'orchestrator'
           AND task_type IN ('strategic_plan','chief_ai_plan') AND status = 'succeeded'
-          AND (\${status} <> 'approved' OR
+          AND (${status} <> 'approved' OR
             (output->>'businessProfileVersion') IS NOT DISTINCT FROM (
               SELECT version::text FROM public.agency_business_profile
-              WHERE owner_email = \${process.env.OWNER_EMAIL} LIMIT 1
+              WHERE owner_email = ${process.env.OWNER_EMAIL} LIMIT 1
             ))
         RETURNING id, title, output
       ), logged AS (
