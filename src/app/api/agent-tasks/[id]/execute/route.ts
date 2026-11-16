@@ -24,6 +24,7 @@ const AGENT_INSTRUCTIONS: Record<string, string> = {
   research: 'You are the AgencyOS Research Specialist. Produce evidence-led research. Clearly label unknowns and assumptions. Never invent sources, facts, contacts, prices or market data. If source material was not supplied, state that research evidence is missing rather than pretending to browse.',
   seo: 'You are the AgencyOS SEO Specialist. Analyse only the website data or audit evidence supplied in the task. Never claim to have crawled, measured performance, checked rankings, backlinks or indexed pages unless evidence is present. Return findings, severity, impact, recommended fix and verification method.',
   sales: 'You are the AgencyOS Sales Specialist. Prepare tailored, respectful sales research, positioning, offer recommendations and outreach drafts from supplied prospect facts. Never invent a prospect detail or claim an audit happened when it did not. Draft only; never send.',
+  marketing: 'You are the AgencyOS Marketing Specialist. Build practical content calendars, campaign concepts and brand messaging from verified business facts. Never invent services, locations, customer results, testimonials, credentials, prices, guarantees or availability. Use clear placeholders for missing facts. Do not publish or send.',
   development: 'You are the AgencyOS Development Specialist. Produce implementable technical specifications, code plans, acceptance tests and risk notes. Do not claim code was changed, tested, built or deployed unless the task includes verified execution evidence.',
   client_ops: 'You are the AgencyOS Client Operations Specialist. Turn supplied client/project facts into clear milestones, status updates, action lists and risk registers. Do not invent client commitments, deadlines or approvals.',
   finance: 'You are the AgencyOS Finance Specialist. Analyse only supplied financial figures. Show calculations, currency and assumptions. Never invent revenue, costs, balances or payment status, and never initiate payments.',
@@ -39,18 +40,18 @@ function reviewDraftQuality(
   const verifiedText = JSON.stringify(profileContext.verifiedFacts ?? {}).toLowerCase();
   const findings: string[] = [];
   const checks: Array<{ label: string; pattern: RegExp }> = [
-    { label: 'Quantified performance or statistical claim needs a source', pattern: /\\b\\d+(?:\\.\\d+)?\\s?%/gi },
-    { label: 'Guarantee, refund promise or satisfaction commitment needs owner verification', pattern: /\\b(?:guarantee(?:d)?|100%\\s+satisfaction|free\\s+re-clean|money-back)\\b/gi },
-    { label: 'Staff vetting, insurance, certification or training claim needs proof', pattern: /\\b(?:background[- ]checked|vetted|insured|certified|licensed|accredited|professionally trained)\\b/gi },
-    { label: 'Customer result, testimonial or completed-work claim needs evidence', pattern: /\\b(?:we (?:have )?(?:helped|served|cleaned|worked with)|client testimonial|customer review|recently completed)\\b/gi },
-    { label: 'Scarcity or availability claim needs live scheduling evidence', pattern: /\\b(?:limited slots|fully booked|available this week|only \\d+ slots)\\b/gi },
-    { label: 'Price, discount or monetary offer needs approved pricing', pattern: /(?:₦\\s?[\\d,]+|NGN\\s?[\\d,]+|\\b\\d{1,3}(?:,\\d{3})+\\s?(?:naira|NGN)\\b)/gi },
+    { label: 'Quantified performance or statistical claim needs a source', pattern: /\b\d+(?:\.\d+)?\s?%/gi },
+    { label: 'Guarantee, refund promise or satisfaction commitment needs owner verification', pattern: /\b(?:guarantee(?:d)?|100%\s+satisfaction|free\s+re-clean|money-back)\b/gi },
+    { label: 'Staff vetting, insurance, certification or training claim needs proof', pattern: /\b(?:background[- ]checked|vetted|insured|certified|licensed|accredited|professionally trained)\b/gi },
+    { label: 'Customer result, testimonial or completed-work claim needs evidence', pattern: /\b(?:we (?:have )?(?:helped|served|cleaned|worked with)|client testimonial|customer review|recently completed)\b/gi },
+    { label: 'Scarcity or availability claim needs live scheduling evidence', pattern: /\b(?:limited slots|fully booked|available this week|only \d+ slots)\b/gi },
+    { label: 'Price, discount or monetary offer needs approved pricing', pattern: /(?:₦\s?[\d,]+|NGN\s?[\d,]+|\b\d{1,3}(?:,\d{3})+\s?(?:naira|NGN)\b)/gi },
   ];
   for (const check of checks) {
     const matches = deliverable.match(check.pattern) ?? [];
     if (matches.some(match => !verifiedText.includes(match.toLowerCase()))) findings.push(check.label);
   }
-  if (agentKey === 'research' && !/(https?:\\/\\/|\\bsource(?:s)?\\s*:|\\breferences?\\s*:)/i.test(deliverable)) {
+  if (agentKey === 'research' && !/(https?:\/\/|\bsource(?:s)?\s*:|\breferences?\s*:)/i.test(deliverable)) {
     findings.push('Research output contains no traceable source links or references; treat market statements as unverified.');
   }
   const verifiedFactCount = Object.keys(profileContext.verifiedFacts ?? {}).length;
@@ -119,7 +120,7 @@ export async function POST(
       }, { status: 409 });
     }
 
-    const agentSystem = AGENT_INSTRUCTIONS[task.agent_key];
+    // Older plans occasionally labelled content-strategy work as sales. Route by the actual work type so it receives the correct specialist policy.\n    const policyAgentKey = task.agent_key === 'sales' && /\\b(marketing|instagram|social media|content calendar)\\b/i.test(`${task.title} ${task.instructions}`) ? 'marketing' : task.agent_key;\n    const agentSystem = AGENT_INSTRUCTIONS[policyAgentKey];
     if (!agentSystem) {
       return NextResponse.json({ error: 'No execution policy exists for this agent.' }, { status: 400 });
     }
