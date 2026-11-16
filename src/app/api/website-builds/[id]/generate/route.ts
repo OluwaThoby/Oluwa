@@ -99,8 +99,8 @@ function validateFiles(value: unknown) {
   if (!/<footer\b/i.test(files['index.html'])) warnings.push('No footer found.');
   if ((files['index.html'].match(/<section\b/gi) || []).length < 2) warnings.push('The page needs more complete content sections.');
   if (files['styles.css'].trim().length < 600) warnings.push('The visual styling is too limited for a polished business website.');
-  if (!/@media\\s*\\([^)]*(?:max-width|width\\s*<=)/i.test(files['styles.css'])) warnings.push('No mobile CSS breakpoint was detected; check the layout on a narrow screen.');
-  if (/@media[\\s\\S]*?(?:\\.site-nav|nav)[^{]*\\{[^}]*display\\s*:\\s*none/i.test(files['styles.css']) &&
+  if (!/@media\s*\([^)]*(?:max-width|width\s*<=)/i.test(files['styles.css'])) warnings.push('No mobile CSS breakpoint was detected; check the layout on a narrow screen.');
+  if (/@media[\s\S]*?(?:\.site-nav|nav)[^{]*\{[^}]*display\s*:\s*none/i.test(files['styles.css']) &&
       !/mobile[-_ ]?menu|aria-label=["']mobile/i.test(files['index.html'])) {
     warnings.push('The navigation may disappear on mobile without an accessible replacement.');
   }
