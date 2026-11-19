@@ -1,9 +1,16 @@
 import { auth } from '@/lib/auth';
 
-// Build route handlers lazily so Neon Auth secrets are read only when a
-// request reaches this endpoint, never while Next.js collects route metadata.
-export const GET = (request: Request) => auth.handler().GET(request);
-export const POST = (request: Request) => auth.handler().POST(request);
-export const PUT = (request: Request) => auth.handler().PUT(request);
-export const DELETE = (request: Request) => auth.handler().DELETE(request);
-export const PATCH = (request: Request) => auth.handler().PATCH(request);
+type AuthRouteContext = { params: Promise<{ path: string[] }> };
+
+// Construct the Neon handler only when a request arrives. Forward Next.js'
+// route context as required by the Neon Auth adapter.
+function handle(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') {
+  return (request: Request, context: AuthRouteContext) =>
+    auth.handler()[method](request, context);
+}
+
+export const GET = handle('GET');
+export const POST = handle('POST');
+export const PUT = handle('PUT');
+export const DELETE = handle('DELETE');
+export const PATCH = handle('PATCH');
