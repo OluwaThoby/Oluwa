@@ -12,6 +12,8 @@ type Check = {
   model?: string | null;
 };
 
+type DiagnosticReport = { status: string; checkedAt: string; checks: { id: string; label: string; ok: boolean; detail: string }[]; notes: string[] };
+
 type Readiness = {
   generated_at: string;
   checks: Check[];
@@ -28,12 +30,18 @@ const nav = [
   ['Workflows', '/dashboard/workflows'],
   ['Reports', '/dashboard/reports'],
   ['System health', '/dashboard/system'],
+  ['Operating plans', '/dashboard/operating-plans'],
+  ['Business profile', '/dashboard/business-profile'],
 ];
 
 export default function SystemReadiness() {
   const [data, setData] = useState<Readiness | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [aiTesting, setAiTesting] = useState<string | null>(null);
+  const [aiTest, setAiTest] = useState('');
+  const [diagnostics, setDiagnostics] = useState<DiagnosticReport | null>(null);
+  const [diagnosticError, setDiagnosticError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +58,35 @@ export default function SystemReadiness() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); void runDiagnostics(); }, [load]);
+
+  async function runDiagnostics() {
+    setDiagnosticError('');
+    try {
+      const response = await fetch('/api/system/diagnostics', { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Database checks failed.');
+      setDiagnostics(result);
+    } catch (err) {
+      setDiagnosticError(err instanceof Error ? err.message : 'Database checks failed.');
+    }
+  }
+
+  async function testProvider(provider: 'gemini' | 'groq' | 'openrouter') {
+    setAiTesting(provider); setAiTest('');
+    try {
+      const response = await fetch('/api/system/provider-test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'The provider did not return a usable response.');
+      setAiTest('Connected · ' + result.model + ' · ' + result.latencyMs + ' ms · ' + result.response);
+    } catch (err) {
+      setAiTest(err instanceof Error ? 'Test failed: ' + err.message : 'Provider test failed.');
+    } finally { setAiTesting(null); }
+  }
 
   const ready = data?.checks.filter((item) => item.configured).length ?? 0;
   const total = data?.checks.length ?? 0;
@@ -78,8 +114,9 @@ export default function SystemReadiness() {
         <div className="metric"><span className="muted">Execution safety</span><strong>Guarded</strong><span className="secondary">Approvals remain in place</span></div>
       </section>
       <section className="panel">
-        <div className="panel-head"><div><h2>Integration readiness</h2><div className="sub">Missing integrations are shown plainly. Nothing is enabled or purchased from this screen.</div></div><button className="btn" onClick={load} disabled={loading}>↻ Refresh</button></div>
+        <div className="panel-head"><div><h2>Integration readiness</h2><div className="sub">Missing integrations are shown plainly. Nothing is enabled or purchased from this screen.</div></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="btn" onClick={() => testProvider('gemini')} disabled={Boolean(aiTesting)}>{aiTesting === 'gemini' ? 'Testing Gemini…' : 'Test Gemini'}</button><button className="btn" onClick={() => testProvider('groq')} disabled={Boolean(aiTesting)}>{aiTesting === 'groq' ? 'Testing Groq…' : 'Test Groq'}</button><button className="btn" onClick={() => testProvider('openrouter')} disabled={Boolean(aiTesting)}>{aiTesting === 'openrouter' ? 'Testing OpenRouter…' : 'Test OpenRouter'}</button><button className="btn" onClick={load} disabled={loading}>↻ Refresh</button></div></div>
         {error && <p className="error">{error}</p>}
+        {aiTest && <p className={aiTest.startsWith("Connected") ? "notice" : "error"} role="status">{aiTest}</p>}
         {loading ? <p className="empty">Checking server configuration…</p> : <div className="table-wrap"><table>
           <thead><tr><th>SERVICE</th><th>AREA</th><th>STATUS</th><th>DETAIL</th></tr></thead>
           <tbody>{data?.checks.map(item => <tr key={item.key}>
@@ -90,6 +127,17 @@ export default function SystemReadiness() {
           </tr>)}</tbody>
         </table></div>}
         {data && <p className="notice">{data.note} Last checked: {new Date(data.generated_at).toLocaleString()}.</p>}
+      </section>
+      <section className="panel">
+        <div className="panel-head"><div><h2>Live workspace diagnostics</h2><div className="sub">Read-only checks against this deployment's database.</div></div><button className="btn" onClick={() => void runDiagnostics()}>↻ Run database checks</button></div>
+        {diagnosticError && <p className="error">{diagnosticError}</p>}
+        {diagnostics && <>
+          <p className={diagnostics.status === 'operational' ? 'notice' : 'error'}>{diagnostics.status === 'operational' ? 'Core database checks passed.' : 'Some database checks need attention.'} Checked {new Date(diagnostics.checkedAt).toLocaleString()}.</p>
+          <div className="table-wrap"><table><thead><tr><th>CHECK</th><th>RESULT</th><th>DETAIL</th></tr></thead><tbody>
+            {diagnostics.checks.map(item => <tr key={item.id}><td><span className="business">{item.label}</span></td><td><span className="badge">{item.ok ? 'PASSED' : 'NEEDS ATTENTION'}</span></td><td>{item.detail}</td></tr>)}
+          </tbody></table></div>
+          <p className="notice">{diagnostics.notes.join(' ')}</p>
+        </>}
       </section>
       <section className="panel">
         <div className="panel-head"><div><h2>Execution safeguards</h2><div className="sub">The system should not take consequential actions just because an integration becomes available.</div></div></div>

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAgencyModelRuntimeReadiness } from '../src/lib/intelligence/runtime-config.mjs';
+import { readFileSync } from 'node:fs';
+import { getAgencyModelRuntimeReadiness, resolveAgencyProviderForTask } from '../src/lib/intelligence/runtime-config.mjs';
 
 test('self-hosted runtime is ready only when endpoint, model and token are present', () => {
   const ready = getAgencyModelRuntimeReadiness({
@@ -47,4 +48,176 @@ test('unsupported runtime never falls back to a hosted model', () => {
   });
   assert.equal(result.configured, false);
   assert.equal(result.model, null);
+});
+
+
+test('multi-provider readiness honours task-specific routes instead of unused providers', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    OPENROUTER_API_KEY: 'test-openrouter-key',
+    OPENROUTER_MODEL: 'openrouter/free',
+    GEMINI_API_KEY: 'unused-gemini-key',
+    GEMINI_MODEL: 'unused-model',
+    GROQ_API_KEY: 'unused-groq-key',
+    GROQ_MODEL: 'unused-model',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
+  });
+
+  assert.equal(result.configured, true);
+  assert.deepEqual(result.providers, ['openrouter']);
+  assert.ok(Object.values(result.routes).every((provider) => provider === 'openrouter'));
+  assert.deepEqual(result.missing, []);
+  assert.equal(JSON.stringify(result).includes('test-openrouter-key'), false);
+});
+
+test('multi-provider readiness requires only credentials for providers actually selected', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    OPENROUTER_API_KEY: 'test-key',
+    OPENROUTER_MODEL: 'openrouter/free',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
+  });
+
+  assert.equal(result.configured, true);
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.providers, ['openrouter']);
+});
+
+test('multi-provider readiness rejects unsupported provider overrides', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    AGENCY_ROUTE_GENERAL: 'unknown-provider',
+  });
+
+  assert.equal(result.configured, false);
+  assert.ok(result.missing.some((item) => item.includes('AGENCY_ROUTE_GENERAL')));
+});
+
+test('multi-provider readiness reports only the missing selected provider fields', () => {
+  const result = getAgencyModelRuntimeReadiness({
+    AGENCY_MODEL_RUNTIME: 'multi-provider',
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_RESEARCH: 'openrouter',
+    AGENCY_ROUTE_PROSPECT_QUALIFICATION: 'openrouter',
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_REPORT_GENERATION: 'openrouter',
+    AGENCY_ROUTE_CLIENT_FOLLOWUP: 'openrouter',
+    AGENCY_ROUTE_INVOICE_REMINDER: 'openrouter',
+  });
+
+  assert.equal(result.configured, false);
+  assert.deepEqual(result.missing, ['OPENROUTER_API_KEY', 'OPENROUTER_MODEL']);
+});
+
+
+test('unknown automation task types inherit the explicit general route', () => {
+  const route = resolveAgencyProviderForTask('website_audit', {
+    AGENCY_ROUTE_GENERAL: 'openrouter',
+    AGENCY_ROUTE_WEBSITE_AUDIT: 'gemini',
+  });
+  assert.deepEqual(route, {
+    task: 'general',
+    routeName: 'AGENCY_ROUTE_GENERAL',
+    provider: 'openrouter',
+  });
+});
+
+test('known task types honour their own explicit provider route', () => {
+  const route = resolveAgencyProviderForTask('seo_monitoring', {
+    AGENCY_ROUTE_SEO_MONITORING: 'openrouter',
+    AGENCY_ROUTE_GENERAL: 'groq',
+  });
+  assert.deepEqual(route, {
+    task: 'seo_monitoring',
+    routeName: 'AGENCY_ROUTE_SEO_MONITORING',
+    provider: 'openrouter',
+  });
+});
+
+
+test('worker readiness uses the same activation gates as the worker route', async () => {
+  const readiness = readFileSync('src/app/api/system/readiness/route.ts', 'utf8');
+  const worker = readFileSync('src/app/api/worker/route.ts', 'utf8');
+  for (const flag of ['WORKER_EXECUTION_ENABLED', 'SCHEDULER_TRIGGER_CONFIGURED', 'CRON_SECRET', 'DATABASE_URL']) {
+    assert.ok(worker.includes(flag), `worker route must gate on ${flag}`);
+    assert.ok(readiness.includes(flag), `readiness route must report ${flag}`);
+  }
+  assert.match(readiness, /configured: process\.env\.WORKER_EXECUTION_ENABLED === 'true'/);
+  assert.match(readiness, /modelReady/);
+  assert.match(readiness, /CRON_SECRET\.length >= 32/);
+});
+
+test('scheduler gives the worker time to finish its bounded provider request', () => {
+  const workflow = readFileSync('.github/workflows/agencyos-scheduler.yml', 'utf8');
+  assert.match(workflow, /--max-time 55/);
+  assert.match(workflow, /AGENCYOS_WORKER_URL/);
+  assert.match(workflow, /CRON_SECRET/);
+});
+
+
+test('managed authentication exposes complete email, OTP and password-recovery flows', () => {
+  const page = readFileSync('src/app/page.tsx', 'utf8');
+  const reset = readFileSync('src/app/reset-password/page.tsx', 'utf8');
+  const handler = readFileSync('src/app/api/auth/[...path]/route.ts', 'utf8');
+  const authServer = readFileSync('src/lib/auth.ts', 'utf8');
+  const dashboard = readFileSync('src/app/dashboard/overview.tsx', 'utf8');
+  for (const method of [
+    'authClient.signUp.email',
+    'authClient.signIn.email',
+    'authClient.emailOtp.verifyEmail',
+    'authClient.emailOtp.sendVerificationOtp',
+    'authClient.requestPasswordReset',
+    'authClient.getSession',
+  ]) assert.ok(page.includes(method), `missing auth flow: ${method}`);
+  assert.ok(reset.includes('authClient.resetPassword'));
+  assert.ok(dashboard.includes('authClient.signOut()'));
+  assert.ok(dashboard.includes('window.location.assign(\'/\')'));
+  assert.ok(reset.includes('if (!token)'));
+  assert.ok(reset.includes('This reset link is missing or invalid.'));
+  assert.ok(reset.includes('password !== confirm'));
+  assert.match(handler, /auth\.handler\(\)/);
+  assert.ok(authServer.includes('NEON_AUTH_BASE_URL'));
+  assert.ok(authServer.includes('NEON_AUTH_COOKIE_SECRET'));
+});
+
+test('dashboard and privileged system APIs enforce the configured owner identity', () => {
+  const dashboard = readFileSync('src/app/dashboard/page.tsx', 'utf8');
+  const readiness = readFileSync('src/app/api/system/readiness/route.ts', 'utf8');
+  const aiTest = readFileSync('src/app/api/system/ai-test/route.ts', 'utf8');
+  for (const source of [dashboard, readiness, aiTest]) {
+    assert.ok(source.includes('OWNER_EMAIL'));
+    assert.ok(source.includes('toLowerCase()'));
+  }
+  assert.ok(dashboard.includes('if (!user) redirect'));
+  assert.ok(readiness.includes("status: 401"));
+  assert.ok(aiTest.includes("status: 401"));
+});
+
+
+test('provider smoke-test endpoint is owner-only, synthetic-only and opt-in', () => {
+  const route = readFileSync('src/app/api/system/provider-test/route.ts', 'utf8');
+  const runtime = readFileSync('src/lib/intelligence/multi-provider-runtime.ts', 'utf8');
+  const dashboard = readFileSync('src/app/dashboard/system/system-readiness.tsx', 'utf8');
+  assert.ok(route.includes('OWNER_EMAIL'));
+  assert.ok(route.includes("AGENCY_PROVIDER_TESTS_ENABLED !== 'true'"));
+  assert.ok(route.includes("testData: 'synthetic_only'"));
+  assert.ok(route.includes("provider !== 'gemini' && provider !== 'groq' && provider !== 'openrouter'"));
+  assert.ok(runtime.includes('runAgencyProviderSmokeTest'));
+  assert.ok(runtime.includes('AGENCYOS_PROVIDER_OK'));
+  assert.ok(dashboard.includes('/api/system/provider-test'));
+  for (const provider of ['gemini', 'groq', 'openrouter']) {
+    assert.ok(dashboard.includes(`testProvider('${provider}')`));
+  }
 });

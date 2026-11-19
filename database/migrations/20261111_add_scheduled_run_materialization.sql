@@ -83,3 +83,4 @@ COMMENT ON FUNCTION public.materialize_scheduled_automation_run(uuid, timestampt
   IS 'Creates at most one queued run for a due schedule occurrence and advances the schedule using a row lock and expected-time compare-and-swap.';
 
 REVOKE ALL ON FUNCTION public.materialize_scheduled_automation_run(uuid, timestamptz, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.materialize_scheduled_automation_run(uuid, timestamptz, timestamptz) TO agencyos_app;

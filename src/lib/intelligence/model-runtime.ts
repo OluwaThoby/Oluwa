@@ -1,9 +1,11 @@
 import { generateText } from 'ai';
+import { MultiProviderRuntime } from './multi-provider-runtime';
 
 export type AgencyTextRequest = {
   system: string;
   prompt: string;
   maxOutputTokens?: number;
+  taskType?: string;
 };
 
 export type AgencyTextResult = {
@@ -24,7 +26,7 @@ export interface AgencyModelRuntime {
 }
 
 function outputLimit(request: AgencyTextRequest) {
-  return Math.min(4000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
+  return Math.min(8000, Math.max(128, Math.floor(request.maxOutputTokens ?? 1200)));
 }
 
 function validateRequest(request: AgencyTextRequest) {
@@ -172,6 +174,8 @@ export function getAgencyModelRuntime(): AgencyModelRuntime {
       runtime = new VercelGatewayRuntime();
     } else if (runtimeKind === 'self-hosted') {
       runtime = new SelfHostedRuntime();
+    } else if (runtimeKind === 'multi-provider') {
+      runtime = new MultiProviderRuntime();
     } else {
       throw new Error(
         `Unsupported AGENCY_MODEL_RUNTIME "${runtimeKind}". No fallback to a third-party model is permitted.`,

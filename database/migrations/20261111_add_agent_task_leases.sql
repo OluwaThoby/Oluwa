@@ -177,3 +177,5 @@ COMMENT ON FUNCTION public.complete_agent_task(uuid, uuid, text, jsonb, text)
   IS 'Completes an internal agent task only with its current, unexpired lease token; retries are bounded and approval-required tasks are excluded.';
 
 REVOKE ALL ON FUNCTION public.complete_agent_task(uuid, uuid, text, jsonb, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_agent_tasks(text, integer, integer) TO agencyos_app;
+GRANT EXECUTE ON FUNCTION public.complete_agent_task(uuid, uuid, text, jsonb, text) TO agencyos_app;

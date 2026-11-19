@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAutomationRequest, processAutomationRun } from '../src/lib/intelligence/automation-processor.mjs';
+import { buildAutomationRequest, processAutomationRun, verifyAutomationOutput } from '../src/lib/intelligence/automation-processor.mjs';
 
 test('processor builds evidence-bounded internal task requests', () => {
   const request = buildAutomationRequest({
@@ -42,7 +42,24 @@ test('unsupported job types, missing titles and oversized input fail closed', ()
   }), /exceeds/);
 });
 
-test('processor calls the configured generator and returns internal-only output metadata', async () => {
+test('output verification passes structured, evidence-aware responses', () => {
+  const result = verifyAutomationOutput(
+    'Outcome: suitable prospect. Evidence used: owner-provided website status. Assumptions: demand is unknown. Recommended next steps: verify the contact page and review the business website.',
+  );
+  assert.equal(result.status, 'passed');
+  assert.equal(result.factualAccuracyVerified, false);
+  assert.deepEqual(result.failedChecks, []);
+});
+
+test('output verification flags thin or risky output for owner review without deleting it', () => {
+  const result = verifyAutomationOutput('I have successfully emailed the prospect.');
+  assert.equal(result.status, 'needs_owner_review');
+  assert.ok(result.failedChecks.includes('minimum_substance'));
+  assert.ok(result.failedChecks.includes('external_action_claim'));
+  assert.equal(result.checks.length, 5);
+});
+
+test('processor calls the configured generator and attaches verification metadata', async () => {
   let received;
   const result = await processAutomationRun({
     jobType: 'report_generation',
@@ -50,13 +67,18 @@ test('processor calls the configured generator and returns internal-only output 
     evidence: { completed: ['audit'] },
     generate: async (request) => {
       received = request;
-      return { text: 'Report draft', model: 'test/model', usage: { totalTokens: 12 } };
+      return {
+        text: 'Outcome: report draft prepared. Evidence used: supplied audit. Assumptions: none. Unknowns: current ranking. Recommended next steps: verify the ranking before sending to the client.',
+        model: 'test/model',
+        usage: { totalTokens: 12 },
+      };
     },
   });
   assert.match(received.prompt, /Prepare report/);
-  assert.equal(result.output, 'Report draft');
+  assert.match(result.output, /report draft/);
   assert.equal(result.model, 'test/model');
   assert.equal(result.executionBoundary, 'internal_only_no_external_actions');
+  assert.equal(result.verification.status, 'passed');
 });
 
 test('processor rejects missing generator or empty model output', async () => {

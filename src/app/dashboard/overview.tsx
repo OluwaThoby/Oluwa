@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createAuthClient } from '@neon/auth/next';
+
+const authClient = createAuthClient();
 
 type Snapshot = {
   prospects: any[];
@@ -13,8 +16,10 @@ type LoadState = 'loading' | 'ready' | 'partial' | 'error';
 
 const sections = [
   ['Overview', '/dashboard'],
+  ['Chief AI & agents', '/dashboard/chief-ai'],
   ['Research & leads', '/dashboard/leads'],
   ['Projects & delivery', '/dashboard/projects'],
+  ['Website Studio', '/dashboard/website-studio'],
   ['Clients & retention', '/dashboard/clients'],
   ['Revenue & finance', '/dashboard/revenue'],
   ['SEO intelligence', '/dashboard/seo'],
@@ -22,6 +27,8 @@ const sections = [
   ['Workflows', '/dashboard/workflows'],
   ['Reports', '/dashboard/reports'],
   ['System health', '/dashboard/system'],
+  ['Operating plans', '/dashboard/operating-plans'],
+  ['Business profile', '/dashboard/business-profile'],
 ];
 
 async function readApi(path: string) {
@@ -48,6 +55,21 @@ export default function AgencyOverview() {
   const [state, setState] = useState<LoadState>('loading');
   const [issues, setIssues] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
+  const [authActionError, setAuthActionError] = useState('');
+
+  async function signOut() {
+    setSigningOut(true);
+    setAuthActionError('');
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message || 'Unable to sign out.');
+      window.location.assign('/');
+    } catch (error) {
+      setAuthActionError(error instanceof Error ? error.message : 'Unable to sign out. Please try again.');
+      setSigningOut(false);
+    }
+  }
 
   async function load() {
     setState('loading');
@@ -112,8 +134,10 @@ export default function AgencyOverview() {
           <div className="overview-actions">
             <span className="owner-pill">● PRIVATE WORKSPACE</span>
             <button className="btn" onClick={() => void load()} disabled={state === 'loading'}>{state === 'loading' ? 'Refreshing…' : '↻ Refresh data'}</button>
+            <button className="btn" onClick={() => void signOut()} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button>
           </div>
         </div>
+        {authActionError && <div className="overview-warning" role="alert">{authActionError}</div>}
         <nav className="mobile-menu overview-mobile">{nav(true)}</nav>
 
         <div className={'system-strip ' + (state === 'ready' ? 'system-ok' : state === 'loading' ? '' : 'system-warn')}>
